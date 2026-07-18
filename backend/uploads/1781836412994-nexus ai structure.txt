@@ -1,0 +1,133 @@
+NEXUS-AI
+│
+├── frontend
+│   │
+│   ├── public
+│   │   ├── index.html
+│   │   ├── favicon.ico
+│   │   └── manifest.json
+│   │
+│   └── src
+│       │
+│       ├── assets
+│       │   ├── images
+│       │   ├── icons
+│       │   ├── videos
+│       │   └── sounds
+│       │
+│       ├── components
+│       │   ├── Navbar
+│       │   │   ├── Navbar.jsx
+│       │   │   └── Navbar.css
+│       │   │
+│       │   ├── Sidebar
+│       │   │   ├── Sidebar.jsx
+│       │   │   └── Sidebar.css
+│       │   │
+│       │   ├── ChatBox
+│       │   │   ├── ChatBox.jsx
+│       │   │   └── ChatBox.css
+│       │   │
+│       │   ├── VoiceAssistant
+│       │   │   ├── VoiceAssistant.jsx
+│       │   │   └── VoiceAssistant.css
+│       │   │
+│       │   ├── WeatherWidget
+│       │   │   ├── WeatherWidget.jsx
+│       │   │   └── WeatherWidget.css
+│       │   │
+│       │   └── TaskPanel
+│       │       ├── TaskPanel.jsx
+│       │       └── TaskPanel.css
+│       │
+│       ├── pages
+│       │   ├── Login.jsx
+│       │   ├── Signup.jsx
+│       │   ├── Dashboard.jsx
+│       │   ├── Profile.jsx
+│       │   ├── Settings.jsx
+│       │   └── Chat.jsx
+│       │
+│       ├── services
+│       │   ├── api.js
+│       │   ├── authService.js
+│       │   ├── chatService.js
+│       │   ├── voiceService.js
+│       │   └── weatherService.js
+│       │
+│       ├── context
+│       │   ├── AuthContext.jsx
+│       │   └── ThemeContext.jsx
+│       │
+│       ├── hooks
+│       │   ├── useVoice.js
+│       │   └── useAuth.js
+│       │
+│       ├── styles
+│       │   ├── global.css
+│       │   ├── hacker.css
+│       │   └── animations.css
+│       │
+│       ├── App.js
+│       ├── App.css
+│       └── index.js
+│
+├── backend
+│   │
+│   ├── config
+│   │   └── db.js
+│   │
+│   ├── controllers
+│   │   ├── authController.js
+│   │   ├── chatController.js
+│   │   ├── taskController.js
+│   │   ├── weatherController.js
+│   │   └── aiController.js
+│   │
+│   ├── middleware
+│   │   ├── authMiddleware.js
+│   │   ├── errorMiddleware.js
+│   │   └── uploadMiddleware.js
+│   │
+│   ├── models
+│   │   ├── User.js
+│   │   ├── Chat.js
+│   │   ├── Task.js
+│   │   └── Memory.js
+│   │
+│   ├── routes
+│   │   ├── authRoutes.js
+│   │   ├── chatRoutes.js
+│   │   ├── taskRoutes.js
+│   │   ├── aiRoutes.js
+│   │   └── weatherRoutes.js
+│   │
+│   ├── services
+│   │   ├── openaiService.js
+│   │   ├── speechService.js
+│   │   ├── weatherService.js
+│   │   └── memoryService.js
+│   │
+│   ├── utils
+│   │   ├── jwt.js
+│   │   ├── logger.js
+│   │   └── helpers.js
+│   │
+│   ├── uploads
+│   │
+│   ├── .env
+│   ├── package.json
+│   ├── server.js
+│   └── nodemon.json
+│
+├── database
+│   └── mongodb
+│
+├── docs
+│   ├── API.md
+│   ├── README.md
+│   └── PROJECT_PLAN.md
+│
+├── .gitignore
+├── package.json
+└── README.md

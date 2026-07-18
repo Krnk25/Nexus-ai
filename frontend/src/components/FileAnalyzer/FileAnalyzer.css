@@ -1,0 +1,88 @@
+.file-analyzer {
+  width: 100%;
+  height: 100%;
+  padding: 35px;
+  color: #fff;
+  background: transparent;
+  font-family: "Share Tech Mono", monospace;
+  overflow-y: auto;
+}
+
+.file-analyzer h2 {
+  text-align: center;
+  color: #00ff66;
+  font-size: 32px;
+  text-shadow: 0 0 15px #00ff66;
+  margin-bottom: 10px;
+}
+
+.file-analyzer p {
+  text-align: center;
+  color: #9cffb4;
+  margin-bottom: 25px;
+}
+
+.file-analyzer input {
+  display: block;
+  width: min(600px, 100%);
+  margin: 0 auto 18px;
+  padding: 14px;
+  border: 1px solid #00ff66;
+  background: rgba(0, 255, 90, 0.08);
+  color: #fff;
+}
+
+.file-analyzer button {
+  display: block;
+  margin: 0 auto 25px;
+  padding: 13px 30px;
+  border: 1px solid #00ff66;
+  background: rgba(0, 255, 90, 0.08);
+  color: #00ff66;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.file-analyzer button:hover {
+  box-shadow: 0 0 15px #00ff66;
+}
+
+.file-result {
+  width: min(900px, 100%);
+  max-height: 420px;
+  margin: auto;
+  padding: 18px;
+  border: 1px solid #00ff66;
+  background: rgba(0, 0, 0, 0.55);
+  color: #d8ffe2;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+.file-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.file-actions button {
+  padding: 11px 20px;
+}
+.file-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.file-actions button {
+  padding: 12px 22px;
+  border: 1px solid #00ff66;
+  background: rgba(0, 255, 90, 0.08);
+  color: #00ff66;
+  cursor: pointer;
+}
+
+.file-actions button:hover {
+  box-shadow: 0 0 15px #00ff66;
+}

@@ -1,0 +1,190 @@
+.settings-page {
+  width: 100%;
+  height: 100%;
+  padding: 30px;
+  color: #d7ffe0;
+  background: transparent;
+  overflow-y: auto;
+}
+
+.settings-page h2 {
+  text-align: center;
+  color: #00ff66;
+  font-size: 34px;
+  text-shadow: 0 0 18px #00ff66;
+}
+
+.settings-subtitle {
+  text-align: center;
+  color: #9cffb4;
+  margin: 8px 0 30px;
+}
+
+.settings-grid {
+  width: min(1150px, 100%);
+  margin: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(285px, 1fr));
+  gap: 20px;
+}
+
+.settings-card {
+  padding: 10px;
+  border: 1px solid rgba(0, 255, 102, 0.8);
+  background: rgba(0, 8, 3, 0.72);
+  box-shadow:
+    0 0 18px rgba(0, 255, 90, 0.18),
+    inset 0 0 18px rgba(0, 255, 90, 0.06);
+}
+
+.settings-card h3 {
+  color: #00ff66;
+  margin-bottom: 16px;
+  font-size: 18px;
+  text-shadow: 0 0 10px rgba(0, 255, 90, 0.5);
+}
+
+.settings-card label {
+  display: block;
+  color: #9cffb4;
+  margin: 12px 0 7px;
+  font-size: 14px;
+}
+
+.settings-card input,
+.settings-card select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #00ff66;
+  outline: none;
+  background: #020802;
+  color: #ffffff;
+  margin-bottom: 10px;
+}
+
+.settings-card input[type="range"] {
+  accent-color: #00ff66;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 14px 0;
+  color: #d7ffe0;
+}
+
+.setting-toggle {
+  min-width: 75px;
+  padding: 10px 14px;
+  border: 1px solid #ff4444;
+  background: rgba(255, 0, 0, 0.08);
+  color: #ff4444;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.setting-toggle.active {
+  border-color: #00ff66;
+  background: rgba(0, 255, 90, 0.12);
+  color: #00ff66;
+}
+
+.settings-actions {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin: 30px 0 10px;
+}
+
+.settings-actions button {
+  padding: 13px 30px;
+  border: 1px solid #00ff66;
+  background: rgba(0, 255, 90, 0.08);
+  color: #00ff66;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.settings-actions button:hover,
+.setting-toggle:hover {
+  box-shadow: 0 0 15px #00ff66;
+}
+
+@media (max-width: 700px) {
+  .settings-page {
+    padding: 25px 16px;
+  }
+
+  .settings-actions {
+    flex-direction: column;
+  }
+
+  .settings-actions button {
+    width: 100%;
+  }
+}
+
+body[data-theme="hacker"] {
+  --nexus-main: #00ff66;
+  --nexus-bg: #020702;
+}
+
+body[data-theme="cyber"] {
+  --nexus-main: #00ccff;
+  --nexus-bg: #020814;
+}
+
+body[data-theme="dark"] {
+  --nexus-main: #ffffff;
+  --nexus-bg: #050505;
+}
+
+body[data-theme="matrix"] {
+  --nexus-main: #26fd00;
+  --nexus-bg: #000000;
+}
+
+.nexus-page {
+  background: var(--nexus-bg, #020702) !important;
+}
+
+.logo span,
+.brand-text h1 span,
+.panel-title h3,
+.nav-item span,
+.nav-item:hover p,
+.settings-page h2,
+.settings-card h3,
+.voice-assistant h2 {
+  color: var(--nexus-main, #00ff66) !important;
+  text-shadow: 0 0 15px var(--nexus-main, #00ff66) !important;
+}
+
+.nav-item,
+.glass-panel,
+.settings-card,
+.voice-box,
+.settings-modal,
+.chat-modal,
+.file-modal,
+.system-modal,
+.analytics-modal,
+.voice-modal {
+  border-color: var(--nexus-main, #00ff66) !important;
+}
+
+.mic-btn,
+.nav-btn,
+.settings-actions button,
+.voice-buttons button,
+.close-settings-btn,
+.close-chat-btn,
+.close-file-btn,
+.close-system-btn,
+.close-analytics-btn,
+.close-voice-btn {
+  border-color: var(--nexus-main, #00ff66) !important;
+  color: var(--nexus-main, #00ff66) !important;
+}

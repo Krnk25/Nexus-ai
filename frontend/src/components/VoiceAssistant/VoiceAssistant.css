@@ -1,0 +1,127 @@
+.voice-assistant {
+  width: min(900px, 95%);
+  margin: 30px auto;
+  padding: 30px;
+  border-radius: 24px;
+  background: rgba(3, 12, 10, 0.92);
+  border: 1px solid rgba(0, 255, 170, 0.25);
+  box-shadow: 0 0 35px rgba(0, 255, 170, 0.18);
+  color: #eafff8;
+  text-align: center;
+  font-family: Arial, sans-serif;
+}
+
+.voice-assistant h2 {
+  margin-bottom: 20px;
+  font-size: 30px;
+  color: #00ffaa;
+  text-shadow: 0 0 20px rgba(0, 255, 170, 0.7);
+}
+
+.voice-orb {
+  width: 130px;
+  height: 130px;
+  margin: 20px auto;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 48px;
+  background: radial-gradient(circle, #053d32, #020b09);
+  border: 2px solid rgba(0, 255, 170, 0.45);
+  box-shadow: 0 0 25px rgba(0, 255, 170, 0.25);
+  transition: 0.3s ease;
+}
+
+.voice-orb.active {
+  transform: scale(1.06);
+  animation: pulseMic 1s infinite;
+  box-shadow: 0 0 45px rgba(0, 255, 170, 0.75);
+}
+
+@keyframes pulseMic {
+  0% {
+    box-shadow: 0 0 12px rgba(0, 255, 170, 0.4);
+  }
+
+  50% {
+    box-shadow: 0 0 48px rgba(0, 255, 170, 0.9);
+  }
+
+  100% {
+    box-shadow: 0 0 12px rgba(0, 255, 170, 0.4);
+  }
+}
+
+.voice-status {
+  min-height: 24px;
+  margin: 15px 0;
+  font-size: 16px;
+  color: #b9fff0;
+}
+
+.voice-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin: 22px 0;
+}
+
+.voice-buttons button {
+  min-width: 120px;
+  padding: 12px 22px;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 700;
+  color: #001a13;
+  background: linear-gradient(135deg, #00ffaa, #00c3ff);
+  box-shadow: 0 0 18px rgba(0, 255, 170, 0.35);
+  transition: 0.25s ease;
+}
+
+.voice-buttons button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 28px rgba(0, 255, 170, 0.6);
+}
+
+.voice-buttons button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.voice-box {
+  margin-top: 18px;
+  padding: 18px;
+  text-align: left;
+  border-radius: 18px;
+  background: rgba(0, 255, 170, 0.06);
+  border: 1px solid rgba(0, 255, 170, 0.18);
+}
+
+.voice-box h4 {
+  margin: 0 0 8px;
+  color: #00ffaa;
+}
+
+.voice-box p {
+  margin: 0;
+  line-height: 1.6;
+  color: #eafff8;
+  word-break: break-word;
+}
+
+@media (max-width: 600px) {
+  .voice-assistant {
+    padding: 20px;
+  }
+
+  .voice-buttons {
+    flex-direction: column;
+  }
+
+  .voice-buttons button {
+    width: 100%;
+  }
+}

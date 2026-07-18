@@ -1,0 +1,142 @@
+.memory-page {
+  width: 100%;
+  height: 100%;
+  padding: 35px 55px;
+  color: #d7ffe0;
+  background: transparent;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.memory-page h2 {
+  text-align: center;
+  color: var(--nexus-main, #00ff66);
+  font-size: 38px;
+  letter-spacing: 2px;
+  text-shadow: 0 0 18px var(--nexus-main, #00ff66);
+}
+
+.memory-subtitle {
+  text-align: center;
+  color: #9cffb4;
+  margin: 10px 0 30px;
+}
+
+.memory-refresh-btn {
+  display: block;
+  margin: 0 auto 34px;
+  padding: 14px 34px;
+  border: 1px solid var(--nexus-main, #00ff66);
+  border-radius: 999px;
+  background: rgba(0, 255, 90, 0.08);
+  color: var(--nexus-main, #00ff66);
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.memory-refresh-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 18px var(--nexus-main, #00ff66);
+}
+
+.memory-form {
+  width: min(1000px, 100%);
+  margin: auto;
+}
+
+.memory-field {
+  margin-bottom: 30px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(0, 255, 90, 0.16);
+}
+
+.memory-field label {
+  display: block;
+  margin-bottom: 11px;
+  color: var(--nexus-main, #00ff66);
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.memory-input {
+  width: 100%;
+  min-height: 78px;
+  padding: 16px;
+  background: rgba(0, 8, 3, 0.65);
+  color: #d7ffe0;
+  border: 1px solid rgba(0, 255, 100, 0.35);
+  outline: none;
+  font-size: 16px;
+  line-height: 1.7;
+  resize: vertical;
+}
+
+.memory-input.active,
+.memory-input:focus {
+  border-color: var(--nexus-main, #00ff66);
+  box-shadow: 0 0 16px rgba(0, 255, 90, 0.25);
+}
+
+.memory-actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.memory-actions button {
+  min-width: 95px;
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 900;
+  transition: 0.25s;
+}
+
+.memory-edit-btn,
+.memory-save-btn {
+  border: 1px solid var(--nexus-main, #00ff66);
+  background: rgba(0, 255, 90, 0.1);
+  color: var(--nexus-main, #00ff66);
+}
+
+.memory-delete-btn,
+.memory-cancel-btn {
+  border: 1px solid #ff4444;
+  background: rgba(255, 0, 0, 0.08);
+  color: #ff5555;
+}
+
+.memory-edit-btn:hover,
+.memory-save-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 15px var(--nexus-main, #00ff66);
+}
+
+.memory-delete-btn:hover,
+.memory-cancel-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 15px #ff4444;
+}
+
+.no-memory {
+  text-align: center;
+  color: #9cffb4;
+  padding: 40px;
+  border: 1px dashed rgba(0, 255, 90, 0.35);
+  background: rgba(0, 8, 3, 0.45);
+}
+
+@media (max-width: 700px) {
+  .memory-page {
+    padding: 25px 18px;
+  }
+
+  .memory-actions {
+    justify-content: flex-start;
+  }
+}

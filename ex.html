@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Nexus AI - Personal Assistant</title>
+        <link rel="stylesheet" href="ex.css">
+        <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+    </head>
+    <body>
+        <div class="nexus-page">
+            <div class="matrix-rain"></div>
+            <header class="topbar">
+                <div class="brand-panel">
+                    <button class="hud-btn">
+                        <i class="bx bx-menu"></i>
+                    </button>
+                    <div class="brand-text">
+                        <h1>NEXUS AI</h1>
+                        <p>PERSONAL AI ASSISTANT</p>
+                    </div>
+                </div>
+                <div class="status-badge">
+                    <span class="pulse-dot"></span>
+                    SYSTEM ONLINE
+                </div>
+                <div class="time-panel">
+                    <div class="time-text">
+                        <h3>02:42:17 PM</h3>
+                        <p>MON, 02 JUNE 2026</p>
+                    </div>
+                    <button class="hud-btn">
+                        <i class="bx bx-user"></i>
+                    </button>
+                </div>
+            </header>
+            <main class="dashboard-layout">
+                <section class="side-column">
+                    <div class="hud-panel nav-panel">
+                        <div class="panel-header">MAIN MENU</div>
+                        <nav class="nav-list">
+                            <a href="#" class="nav-item active">
+                                <i class="bx bx-home-alt"></i> DASHBOARD
+                                <i class="bx bx-chevron-right arrow"></i>
+                            </a>
+                            <a href="#" class="nav-item">
+                                <i class="bx bx-chat"></i> AI CHAT
+                                <i class="bx bx-chevron-right arrow"></i>
+                            </a>
+                            <a href="#" class="nav-item">
+                                <i class="bx bx-microphone"></i> VOICE COMMAND
+                                <i class="bx bx-chevron-right arrow"></i>
+                            </a>
+                            <a href="#" class="nav-item">
+                                <i class="bx bx-terminal"></i> SYSTEM CONTROL
+                                <i class="bx bx-chevron-right arrow"></i>
+                            </a>
+                            <a href="#" class="nav-item">
+                                <i class="bx bx-globe"></i> WEB ACCESS
+                                <i class="bx bx-chevron-right arrow"></i>
+                            </a>
+                            <a href="#" class="nav-item">
+                                <i class="bx bx-bar-chart-alt-2"></i> DATA ANALYTICS
+                                <i class="bx bx-chevron-right arrow"></i>
+                            </a>
+                            <a href="#" class="nav-item">
+                                <i class="bx bx-cog"></i> SETTINGS
+                                <i class="bx bx-chevron-right arrow"></i>
+                            </a>
+                        </nav>
+                    </div>
+                    <div class="hud-panel status-panel">
+                        <div class="panel-header">SYSTEM STATUS
+                            <i class="bx bx-pulse telemetry-icon"></i>
+                        </div>
+                        <div class="status-content">
+                            <div class="metric-group">
+                                <div class="metric-label">
+                                    <span>CPU USAGE</span>
+                                    <span>23%</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <span style="width: 23%;"></span>
+                                </div>
+                            </div>
+                            <div class="metric-group">
+                                <div class="metric-label">
+                                    <span>RAM USAGE</span>
+                                    <span>45%</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <span style="width: 45%;"></span>
+                                </div>
+                            </div>
+                            <div class="metric-group">
+                                <div class="metric-label">
+                                    <span>NETWORK</span>
+                                    <span>68%</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <span style="width: 68%;"></span>
+                                </div>
+                            </div>
+                            <div class="metric-group">
+                                <div class="metric-label">
+                                    <span>BATTERY</span>
+                                    <span>92%</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <span style="width: 92%;"></span>
+                                </div>
+                            </div>
+                            <div class="operational-footer">
+                                <span class="status-indicator"></span>
+                                ALL SYSTEMS OPERATIONAL
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section class="center-stage">
+                    <div class="core-container">
+                        <div class="circuit-line left"></div>
+                        <div class="circuit-line right"></div>
+                        <div class="outer-ring ring-1"></div>
+                        <div class="outer-ring ring-2"></div>
+                        <div class="central-core">
+                            <div class="core-text">
+                                <h2>NEXUS AI</h2>
+                                <span>INTELLIGENT SYSTEM</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="voice-panel">
+                        <div class="audio-wave left"></div>
+                        <button class="mic-button">
+                            <i class="bx bx-microphone"></i>
+                        </button>
+                        <div class="audio-wave right"></div>
+                        <span class="voice-label">VOICE ENGINE: ACTIVE</span>
+                        <span class="click-prompt">CLICK TO SPEAK</span>
+                    </div>
+                </section>
+                <section class="side-column">
+                    <div class="hud-panel console-panel">
+                        <div class="panel-header">AI CONSOLE
+                            <span class="header-dots">•••</span>
+                        </div>
+                        <div class="console-body">
+                            <p class="version">NEXUS AI v2.5.0</p>
+                            <p class="greeting">Hello Karan 👋</p>
+                            <p class="greeting">I am NEXUS AI.</p>
+                            <p class="greeting">How can I assist you today?</p>
+                            <div class="cursor-line">
+                                <span class="terminal-cursor"></span>
+                            </div>
+                        </div>
+                        <div class="console-input-wrapper">
+                            <input type="text" placeholder="Type your message...">
+                            <button class="send-btn">
+                                <i class="bx bx-send"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="hud-panel quick-panel">
+                        <div class="panel-header">QUICK COMMANDS</div>
+                        <div class="command-list">
+                            <div class="cmd-item">
+                                <i class="bx bxl-google icon-google"></i> Open Google
+                                <i class="bx bx-chevron-right arrow"></i>
+                            </div>
+                            <div class="cmd-item">
+                                <i class="bx bxl-youtube icon-youtube"></i> Open YouTube
+                                <i class="bx bx-chevron-right arrow"></i>
+                            </div>
+                            <div class="cmd-item">
+                                <i class="bx bxl-github icon-github"></i> Open GitHub
+                                <i class="bx bx-chevron-right arrow"></i>
+                            </div>
+                            <div class="cmd-item">
+                                <i class="bx bx-desktop icon-sys"></i> System Information
+                                <i class="bx bx-chevron-right arrow"></i>
+                            </div>
+                            <div class="cmd-item">
+                                <i class="bx bx-cloud-sun icon-weather"></i> Weather Update
+                                <i class="bx bx-chevron-right arrow"></i>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </body>
+</html>

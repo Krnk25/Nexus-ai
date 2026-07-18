@@ -1,0 +1,51 @@
+Chat History MongoDB
+New Chat
+Previous Chats
+Delete Chat
+
+Typing Effect
+
+NEXUS AI is thinking...
+
+letter-by-letter answer.
+
+Markdown Support
+
+Code blocks
+Tables
+Lists
+
+Install:
+
+npm install react-markdown
+
+AI Memory
+Example:
+
+My name is Karan
+
+AI future chats me yaad rakhe.
+
+File Upload
+PDF
+Resume
+Code file analysis
+Transparent Dashboard Chat Modal
+(jo abhi humne start kiya hai)
+Theme Switcher
+Hacker Green
+Cyber Blue
+Red Matrix
+Real Weather Widget
+Current weather
+Location based
+Voice Output Language Match
+Hindi question → Hindi voice
+English question → English voice
+Marathi question → Marathi voice
+NEXUS AI Login System
+JWT Auth
+User Profile
+Saved Chats per User
+
+Ab NEXUS AI ka foundation

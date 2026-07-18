@@ -1,0 +1,36 @@
+.orb{
+    width:350px;
+    height:350px;
+    border-radius:50%;
+
+    background:
+    radial-gradient(
+      circle,
+      #00ff41,
+      #001f0d
+    );
+
+    box-shadow:
+      0 0 50px #00ff41,
+      0 0 100px #00ff41,
+      0 0 150px #00ff41;
+
+    animation:
+      pulse 2s infinite,
+      rotateHue 10s linear infinite;
+}
+
+@keyframes pulse{
+    50%{
+        transform:scale(1.08);
+    }
+}
+
+@keyframes rotateHue{
+    from{
+        filter:hue-rotate(0deg);
+    }
+    to{
+        filter:hue-rotate(360deg);
+    }
+}
