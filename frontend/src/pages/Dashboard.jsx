@@ -1,5 +1,6 @@
 /* eslint-disable no-useless-assignment */
 /* eslint-disable react-hooks/purity */
+
 import axios from "axios";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -41,10 +42,8 @@ const API_BASE_URL =
 
 const API = axios.create({
   baseURL: `${API_BASE_URL}/api`,
-  headers: {
-    "Content-Type": "application/json",
-  },
-  timeout: 30000,
+  headers: { "Content-Type": "application/json" },
+  timeout: 120000,
 });
 
 const menu = [
@@ -86,9 +85,11 @@ export default function Dashboard() {
   const [input, setInput] = useState("");
   const [listening, setListening] = useState(false);
   const [voiceReady, setVoiceReady] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [currentDateTime, setCurrentDateTime] = useState(new Date());
 
   const [networkStatus, setNetworkStatus] = useState(
-    navigator.onLine ? "READY" : "OFFLINE"
+    navigator.onLine ? "READY" : "OFFLINE",
   );
   const [backendStatus, setBackendStatus] = useState("CHECKING");
   const [systemStatus, setSystemStatus] = useState("READY");
@@ -96,7 +97,7 @@ export default function Dashboard() {
   const [messages, setMessages] = useState([
     "NEXUS AI v3.0.0",
     "Hello Karan 👋",
-    "Click mic and ask anything. Gemini AI will answer directly.",
+    "Click mic and ask anything. NEXUS AI will answer directly.",
   ]);
 
   const consoleEndRef = useRef(null);
@@ -117,12 +118,17 @@ export default function Dashboard() {
         delay: `${Math.random() * 5}s`,
         text: makeBinary(),
       })),
-    []
+    [],
   );
 
   useEffect(() => {
     consoleEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentDateTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const updateNetwork = () => {
@@ -141,7 +147,7 @@ export default function Dashboard() {
   useEffect(() => {
     const checkBackend = async () => {
       try {
-        await axios.get(API_BASE_URL);
+        await axios.get(API_BASE_URL, { timeout: 30000 });
         setBackendStatus("ACTIVE");
       } catch {
         setBackendStatus("FAILED");
@@ -149,21 +155,24 @@ export default function Dashboard() {
     };
 
     checkBackend();
-    const timer = setInterval(checkBackend, 10000);
-
+    const timer = setInterval(checkBackend, 15000);
     return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
     const loadVoices = () => {
-      voicesRef.current = window.speechSynthesis.getVoices();
+      voicesRef.current = window.speechSynthesis?.getVoices() || [];
     };
 
     loadVoices();
-    window.speechSynthesis.onvoiceschanged = loadVoices;
+    if (window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
 
     return () => {
-      window.speechSynthesis.onvoiceschanged = null;
+      if (window.speechSynthesis) {
+        window.speechSynthesis.onvoiceschanged = null;
+      }
     };
   }, []);
 
@@ -172,7 +181,7 @@ export default function Dashboard() {
       try {
         autoListenRef.current = false;
         recognitionRef.current?.stop();
-        window.speechSynthesis.cancel();
+        window.speechSynthesis?.cancel();
       } catch {
         // ignore cleanup error
       }
@@ -185,7 +194,6 @@ export default function Dashboard() {
     if (typeof value === "number" || typeof value === "boolean") {
       return String(value);
     }
-
     if (typeof value === "object") {
       return (
         value.reply ||
@@ -196,14 +204,38 @@ export default function Dashboard() {
         JSON.stringify(value)
       );
     }
-
     return String(value);
+  };
+
+  const getPersonalData = () => {
+    const fallbackProfile = {
+      name: "Karan Kabade",
+      email: "karankabade7@gmail.com",
+      mobile: "8265044456",
+      education: "B.Sc Computer Science",
+      college: "",
+      skills: "React, Node.js, Express.js, MongoDB, PHP, MySQL",
+      github: "https://github.com/Krnk25",
+      linkedin: "www.linkedin.com/in/karan-kabade",
+      portfolio: "",
+      location: "beed",
+      bio: "",
+    };
+
+    try {
+      const savedProfile = JSON.parse(
+        localStorage.getItem("nexus_profile") || "{}",
+      );
+      return { ...fallbackProfile, ...savedProfile };
+    } catch (error) {
+      console.error("Profile read error:", error);
+      return fallbackProfile;
+    }
   };
 
   const getAIReply = (data) => {
     if (!data) return "No reply received from AI.";
     if (typeof data === "string") return data;
-
     return safeText(
       data.reply ||
         data.answer ||
@@ -215,7 +247,7 @@ export default function Dashboard() {
         data.data?.message ||
         data.result?.reply ||
         data.result?.answer,
-      "No reply received from AI."
+      "No reply received from AI.",
     );
   };
 
@@ -227,11 +259,9 @@ export default function Dashboard() {
 
   const replaceLastMessage = (message) => {
     const finalMessage = safeText(message, "No message.");
-
     setMessages((prev) => {
       const updated = [...prev];
       if (updated.length === 0) return [finalMessage];
-
       updated.pop();
       return [...updated, finalMessage];
     });
@@ -243,41 +273,12 @@ export default function Dashboard() {
 
     conversationHistoryRef.current = [
       ...conversationHistoryRef.current,
-      {
-        role,
-        content: finalContent,
-      },
+      { role, content: finalContent },
     ].slice(-16);
   };
 
-  const getContextPrompt = (currentQuestion) => {
-    const previousChat = conversationHistoryRef.current
-      .map((msg) => `${msg.role}: ${msg.content}`)
-      .join("\n");
-
-    return `
-You are NEXUS AI, Karan's personal AI assistant.
-
-Previous conversation:
-${previousChat || "No previous conversation."}
-
-Current user question:
-${currentQuestion}
-
-Important rules:
-- Use previous conversation context.
-- If user says "aur iska", "aur uska", "aur iska business", "aur Anant Ambani ka", understand from previous chat.
-- Reply in the same language as the user.
-- If user speaks Marathi, reply in natural Marathi.
-- If user speaks Hindi, reply in natural Hindi.
-- If user speaks Hinglish, reply in simple Hinglish.
-- Keep answer short and natural.
-`;
-  };
-
-  const getRecognitionLang = () => {
-    return localStorage.getItem("nexus_recognition_lang") || "en-IN";
-  };
+  const getRecognitionLang = () =>
+    localStorage.getItem("nexus_recognition_lang") || "en-IN";
 
   const detectVoiceLang = (text) => {
     const msg = safeText(text, "").toLowerCase();
@@ -295,6 +296,9 @@ Important rules:
       "महाराष्ट्र",
       "नाव",
       "वेळ",
+      "तारीख",
+      "वाजले",
+      "आजची",
       "kay",
       "kasa",
       "kashi",
@@ -317,6 +321,8 @@ Important rules:
       "हिंदी",
       "समय",
       "नाम",
+      "तारीख",
+      "कितने बजे",
       "kya",
       "kaise",
       "mujhe",
@@ -328,14 +334,13 @@ Important rules:
 
     if (marathiWords.some((word) => msg.includes(word))) return "mr-IN";
     if (hindiWords.some((word) => msg.includes(word))) return "hi-IN";
-
     return "en-IN";
   };
 
   const getIndianFemaleVoice = (lang = "en-IN") => {
     const voices = voicesRef.current.length
       ? voicesRef.current
-      : window.speechSynthesis.getVoices();
+      : window.speechSynthesis?.getVoices() || [];
 
     const femaleNames = [
       "aarohi",
@@ -382,174 +387,17 @@ Important rules:
     );
   };
 
-  const startDirectListening = async () => {
-    try {
-      if (speakingRef.current || thinkingRef.current) return;
-
-      setVoiceReady(true);
-      setInput("Listening...");
-
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        const msg = "Mic permission API supported nahi hai. Chrome use karo.";
-        setInput("");
-        addMessage(`🤖 ${msg}`);
-        speak(msg);
-        return;
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach((track) => track.stop());
-
-      const SpeechRecognition =
-        window.SpeechRecognition || window.webkitSpeechRecognition;
-
-      if (!SpeechRecognition) {
-        const msg = "Voice recognition not supported. Chrome browser use karo.";
-        setInput("");
-        addMessage(`🤖 ${msg}`);
-        speak(msg);
-        return;
-      }
-
-      try {
-        recognitionRef.current?.stop();
-      } catch {
-        // ignore old recognition stop error
-      }
-
-      const recognition = new SpeechRecognition();
-      recognitionRef.current = recognition;
-
-      recognition.lang = getRecognitionLang();
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
-
-      recognition.onstart = () => {
-        setListening(true);
-        setInput("Listening...");
-      };
-
-      recognition.onresult = async (event) => {
-        const voiceText = event.results?.[0]?.[0]?.transcript?.trim();
-
-        if (!voiceText) {
-          setListening(false);
-          setInput("");
-          return;
-        }
-
-        setListening(false);
-        setInput(voiceText);
-
-        try {
-          recognition.stop();
-        } catch {
-          // ignore stop error
-        }
-
-        await askGeminiDirect(voiceText);
-      };
-
-      recognition.onerror = (event) => {
-        console.log("Dashboard Voice Error:", event.error);
-
-        setListening(false);
-
-        if (event.error === "aborted") return;
-
-        if (event.error === "no-speech") {
-          setInput("Listening...");
-
-          if (autoListenRef.current) {
-            setTimeout(() => {
-              startDirectListening();
-            }, 500);
-          }
-
-          return;
-        }
-
-        let msg = "";
-
-        if (event.error === "not-allowed") {
-          msg = "Mic permission blocked hai. Chrome me microphone Allow karo.";
-          autoListenRef.current = false;
-        } else if (event.error === "audio-capture") {
-          msg = "Mic device detect nahi hua. Windows input mic check karo.";
-          autoListenRef.current = false;
-        } else if (event.error === "network") {
-          msg = "Speech network error. Internet check karo.";
-        } else {
-          msg = `Voice error: ${event.error}`;
-        }
-
-        setInput("");
-
-        if (msg) addMessage(`🤖 ${msg}`);
-
-        if (
-          autoListenRef.current &&
-          event.error !== "not-allowed" &&
-          event.error !== "audio-capture"
-        ) {
-          setTimeout(() => {
-            startDirectListening();
-          }, 700);
-        }
-      };
-
-      recognition.onend = () => {
-        setListening(false);
-
-        if (
-          autoListenRef.current &&
-          !speakingRef.current &&
-          !thinkingRef.current
-        ) {
-          setTimeout(() => {
-            startDirectListening();
-          }, 600);
-        }
-      };
-
-      window.speechSynthesis.cancel();
-      recognition.start();
-    } catch (error) {
-      console.log("Mic Permission Error:", error);
-
-      setListening(false);
-      setInput("");
-
-      let msg = "Mic start failed.";
-
-      if (error.name === "NotAllowedError") {
-        msg = "Mic permission blocked hai. Browser me Allow karo.";
-        autoListenRef.current = false;
-      } else if (error.name === "NotFoundError") {
-        msg = "Microphone device nahi mila.";
-        autoListenRef.current = false;
-      }
-
-      addMessage(`🤖 ${msg}`);
-      speak(msg);
-    }
-  };
-
   const speak = (replyText) => {
     const finalText = safeText(replyText, "");
-
-    if (!finalText || finalText === "undefined" || !window.speechSynthesis) {
+    if (!finalText || finalText === "undefined" || !window.speechSynthesis)
       return;
-    }
 
     const cleanText = finalText.replace(
       /```[\s\S]*?```/g,
-      "Code block generated in console."
+      "Code block generated in console.",
     );
 
     const voiceLang = detectVoiceLang(cleanText);
-
     window.speechSynthesis.cancel();
 
     const speech = new SpeechSynthesisUtterance(cleanText);
@@ -567,33 +415,117 @@ Important rules:
 
     speech.onend = () => {
       speakingRef.current = false;
-
       if (autoListenRef.current) {
-        setTimeout(() => {
-          startDirectListening();
-        }, 300);
+        setTimeout(() => startDirectListening(), 500);
       }
     };
 
     speech.onerror = () => {
       speakingRef.current = false;
-
       if (autoListenRef.current) {
-        setTimeout(() => {
-          startDirectListening();
-        }, 500);
+        setTimeout(() => startDirectListening(), 700);
       }
     };
 
     window.speechSynthesis.speak(speech);
   };
 
+  const getCurrentDateReply = (language = "en-IN") => {
+    const currentDate = new Date().toLocaleDateString(language, {
+      timeZone: "Asia/Kolkata",
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+
+    if (language === "mr-IN") return `आज ${currentDate} आहे.`;
+    if (language === "hi-IN") return `आज ${currentDate} है।`;
+    return `Today is ${currentDate}.`;
+  };
+
+  const getCurrentTimeReply = (language = "en-IN") => {
+    const currentTime = new Date().toLocaleTimeString(language, {
+      timeZone: "Asia/Kolkata",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+
+    if (language === "mr-IN") return `सध्या ${currentTime} वाजले आहेत.`;
+    if (language === "hi-IN") return `अभी ${currentTime} बजे हैं।`;
+    return `The current time is ${currentTime}.`;
+  };
+
+  const isDateQuestion = (command) => {
+    const text = safeText(command, "").toLowerCase();
+    const keywords = [
+      "आजची तारीख",
+      "आज तारीख",
+      "आज कोणती तारीख",
+      "तारीख सांगा",
+      "आज काय तारीख",
+      "आज की तारीख",
+      "आज कौन सी तारीख",
+      "तारीख बताओ",
+      "today date",
+      "today's date",
+      "current date",
+      "what is the date",
+      "what date is today",
+      "tarikh",
+    ];
+    return keywords.some((keyword) => text.includes(keyword));
+  };
+
+  const isTimeQuestion = (command) => {
+    const text = safeText(command, "").toLowerCase();
+    const keywords = [
+      "आताची वेळ",
+      "सध्याची वेळ",
+      "आत्ता किती वाजले",
+      "किती वाजले",
+      "वेळ सांगा",
+      "अभी कितने बजे",
+      "अभी का समय",
+      "समय बताओ",
+      "current time",
+      "what time is it",
+      "time now",
+      "samay",
+    ];
+    return keywords.some((keyword) => text.includes(keyword));
+  };
+
   const runLocalCommand = async (command) => {
-    const cmd = safeText(command, "").toLowerCase();
+    const originalCommand = safeText(command, "").trim();
+    const cmd = originalCommand.toLowerCase();
+    const detectedLanguage = detectVoiceLang(originalCommand);
+
+    if (isDateQuestion(originalCommand)) {
+      return getCurrentDateReply(detectedLanguage);
+    }
+
+    if (isTimeQuestion(originalCommand)) {
+      return getCurrentTimeReply(detectedLanguage);
+    }
+
+    if (
+      cmd.includes("weather") ||
+      cmd.includes("mausam") ||
+      cmd.includes("हवामान") ||
+      cmd.includes("मौसम")
+    ) {
+      window.open("https://www.google.com/search?q=weather", "_blank");
+      if (detectedLanguage === "mr-IN") return "हवामानाची माहिती उघडत आहे.";
+      if (detectedLanguage === "hi-IN") return "मौसम की जानकारी खोल रहा हूँ।";
+      return "Opening weather information.";
+    }
 
     if (
       cmd.includes("open") ||
       cmd.includes("kholo") ||
+      cmd.includes("खोल") ||
       cmd.includes("start") ||
       cmd.includes("lock") ||
       cmd.includes("shutdown") ||
@@ -613,19 +545,6 @@ Important rules:
       }
     }
 
-    if (cmd.includes("weather") || cmd.includes("mausam")) {
-      window.open("https://www.google.com/search?q=weather", "_blank");
-      return "Opening weather information.";
-    }
-
-    if (cmd.includes("time") || cmd.includes("samay")) {
-      return `Current time is ${new Date().toLocaleTimeString()}.`;
-    }
-
-    if (cmd.includes("date") || cmd.includes("tarikh")) {
-      return `Today is ${new Date().toDateString()}.`;
-    }
-
     return null;
   };
 
@@ -642,16 +561,25 @@ Important rules:
 
     return (
       error.response?.data?.message ||
-      "Gemini API quota khatam ho gaya hai. Voice auto mode stop kar diya. Thodi der baad try karo."
+      "AI API quota khatam ho gaya hai. Voice auto mode stop kar diya."
     );
+  };
+
+  const sendMessageToBackend = async (userMessage) => {
+    return API.post("/ai/chat", {
+      message: userMessage,
+      history: conversationHistoryRef.current,
+      settings: { voiceLang: getRecognitionLang() },
+      personalData: getPersonalData(),
+    });
   };
 
   const askGeminiDirect = async (question) => {
     const userQuestion = safeText(question, "").trim();
-    if (!userQuestion || userQuestion === "Listening...") return;
+    if (!userQuestion || userQuestion === "Listening..." || thinkingRef.current)
+      return;
 
     const now = Date.now();
-
     if (
       lastQuestionRef.current.text === userQuestion &&
       now - lastQuestionRef.current.time < 5000
@@ -659,47 +587,43 @@ Important rules:
       return;
     }
 
-    lastQuestionRef.current = {
-      text: userQuestion,
-      time: now,
-    };
-
+    lastQuestionRef.current = { text: userQuestion, time: now };
     thinkingRef.current = true;
-
+    setSending(true);
     setInput(userQuestion);
     addMessage(`🎤 ${userQuestion}`);
     addMessage("🤖 Thinking...");
 
     try {
-      const prompt = getContextPrompt(userQuestion);
+      const localReply = await runLocalCommand(userQuestion);
 
-      const res = await API.post("/ai/chat", {
-        message: prompt,
-        history: conversationHistoryRef.current,
-      });
+      if (localReply) {
+        replaceLastMessage(`🤖 ${localReply}`);
+        addToConversationHistory("user", userQuestion);
+        addToConversationHistory("assistant", localReply);
+        speak(localReply);
+        setInput("");
+        return;
+      }
 
+      const res = await sendMessageToBackend(userQuestion);
       const reply = getAIReply(res.data);
 
       setBackendStatus("ACTIVE");
       setNetworkStatus(navigator.onLine ? "READY" : "OFFLINE");
-
       replaceLastMessage(`🤖 ${reply}`);
-
       addToConversationHistory("user", userQuestion);
       addToConversationHistory("assistant", reply);
-
       speak(reply);
+      setInput("");
     } catch (error) {
-      console.error("Direct Gemini Voice Error:", error);
-      console.log("Backend status:", error.response?.status);
-      console.log("Backend data:", error.response?.data);
-
+      console.error("Direct voice AI error:", error);
       const quotaMsg = handleQuotaError(error);
-
       const errorMsg =
         quotaMsg ||
         error.response?.data?.error ||
         error.response?.data?.message ||
+        error.message ||
         "Backend server error aa raha hai.";
 
       setBackendStatus("FAILED");
@@ -707,10 +631,162 @@ Important rules:
       speak(errorMsg);
     } finally {
       thinkingRef.current = false;
+      setSending(false);
+    }
+  };
+
+  const startDirectListening = async () => {
+    try {
+      if (speakingRef.current || thinkingRef.current || listening) return;
+
+      setVoiceReady(true);
+      setInput("Listening...");
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        const msg = "Microphone permission API supported nahi hai.";
+        setInput("");
+        addMessage(`🤖 ${msg}`);
+        speak(msg);
+        return;
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
+
+      stream.getTracks().forEach((track) => track.stop());
+
+      const SpeechRecognition =
+        window.SpeechRecognition || window.webkitSpeechRecognition;
+
+      if (!SpeechRecognition) {
+        const msg = "Voice recognition supported nahi hai.";
+        setInput("");
+        addMessage(`🤖 ${msg}`);
+        speak(msg);
+        return;
+      }
+
+      try {
+        recognitionRef.current?.abort();
+      } catch {
+        // ignore old recognition abort error
+      }
+
+      const recognition = new SpeechRecognition();
+      recognitionRef.current = recognition;
+      recognition.lang = getRecognitionLang();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        setListening(true);
+        setInput("Listening...");
+      };
+
+      recognition.onresult = async (event) => {
+        const voiceText = event.results?.[0]?.[0]?.transcript?.trim();
+        setListening(false);
+
+        if (!voiceText) {
+          setInput("");
+          return;
+        }
+
+        setInput(voiceText);
+
+        try {
+          recognition.stop();
+        } catch {
+          // ignore stop error
+        }
+
+        await askGeminiDirect(voiceText);
+      };
+
+      recognition.onerror = (event) => {
+        console.error("Dashboard Voice Error:", event.error);
+        setListening(false);
+
+        if (event.error === "aborted") return;
+
+        if (event.error === "no-speech") {
+          setInput("");
+          if (autoListenRef.current) {
+            setTimeout(() => startDirectListening(), 800);
+          }
+          return;
+        }
+
+        let msg = "";
+
+        if (event.error === "not-allowed") {
+          msg =
+            "Mic permission blocked hai. Windows aur app settings me microphone Allow karo.";
+          autoListenRef.current = false;
+        } else if (event.error === "audio-capture") {
+          msg = "Mic device detect nahi hua. Windows input mic check karo.";
+          autoListenRef.current = false;
+        } else if (event.error === "network") {
+          msg =
+            "Electron Speech Recognition network error. Desktop app me browser speech service reliable nahi hai.";
+          autoListenRef.current = false;
+          setVoiceReady(false);
+        } else {
+          msg = `Voice error: ${event.error}`;
+        }
+
+        setInput("");
+        if (msg) {
+          addMessage(`🤖 ${msg}`);
+          speak(msg);
+        }
+      };
+
+      recognition.onend = () => {
+        setListening(false);
+        if (
+          autoListenRef.current &&
+          !speakingRef.current &&
+          !thinkingRef.current
+        ) {
+          setTimeout(() => startDirectListening(), 800);
+        }
+      };
+
+      window.speechSynthesis?.cancel();
+      recognition.start();
+    } catch (error) {
+      console.error("Mic Permission Error:", error);
+      setListening(false);
+      setInput("");
+
+      let msg = "Mic start failed.";
+
+      if (
+        error.name === "NotAllowedError" ||
+        error.name === "PermissionDeniedError"
+      ) {
+        msg =
+          "Mic permission blocked hai. Windows Settings me microphone Allow karo.";
+        autoListenRef.current = false;
+      } else if (error.name === "NotFoundError") {
+        msg = "Microphone device nahi mila.";
+        autoListenRef.current = false;
+      }
+
+      addMessage(`🤖 ${msg}`);
+      speak(msg);
     }
   };
 
   const activateVoice = () => {
+    if (listening) return;
     autoListenRef.current = true;
     setVoiceReady(true);
     addMessage("🎤 Voice activated. Ask anything.");
@@ -720,13 +796,11 @@ Important rules:
   const stopVoice = () => {
     try {
       autoListenRef.current = false;
-      recognitionRef.current?.stop();
-      window.speechSynthesis.cancel();
-
+      recognitionRef.current?.abort();
+      window.speechSynthesis?.cancel();
       setListening(false);
       setVoiceReady(false);
       setInput("");
-
       addMessage("🤖 Voice stopped.");
     } catch {
       addMessage("🤖 Voice stop failed.");
@@ -736,64 +810,58 @@ Important rules:
   const handleSend = async (textValue = input) => {
     const userMessage = safeText(textValue, "").trim();
 
-    if (!userMessage || userMessage === "Listening...") return;
+    if (!userMessage || userMessage === "Listening..." || sending) return;
 
-    setInput("");
+    setSending(true);
     addMessage(`💬 ${userMessage}`);
     addMessage("🤖 Thinking...");
 
-    const localReply = await runLocalCommand(userMessage);
-
-    if (localReply) {
-      replaceLastMessage(`🤖 ${localReply}`);
-
-      addToConversationHistory("user", userMessage);
-      addToConversationHistory("assistant", localReply);
-
-      speak(localReply);
-      return;
-    }
-
     try {
-      const prompt = getContextPrompt(userMessage);
+      const localReply = await runLocalCommand(userMessage);
 
-      const res = await API.post("/ai/chat", {
-        message: prompt,
-        history: conversationHistoryRef.current,
-      });
+      if (localReply) {
+        replaceLastMessage(`🤖 ${localReply}`);
+        addToConversationHistory("user", userMessage);
+        addToConversationHistory("assistant", localReply);
+        speak(localReply);
+        setInput("");
+        return;
+      }
 
+      const res = await sendMessageToBackend(userMessage);
       const reply = getAIReply(res.data);
 
       setBackendStatus("ACTIVE");
       setNetworkStatus(navigator.onLine ? "READY" : "OFFLINE");
-
       replaceLastMessage(`🤖 ${reply}`);
-
       addToConversationHistory("user", userMessage);
       addToConversationHistory("assistant", reply);
-
       speak(reply);
+      setInput("");
     } catch (error) {
       console.error("Dashboard console error:", error);
 
       const quotaMsg = handleQuotaError(error);
-
       const errorMsg =
         quotaMsg ||
         error.response?.data?.error ||
         error.response?.data?.message ||
+        error.message ||
         "Backend server error aa raha hai.";
 
       setBackendStatus("FAILED");
       replaceLastMessage(`🤖 ${errorMsg}`);
       speak(errorMsg);
+      setInput(userMessage);
+    } finally {
+      setSending(false);
     }
   };
 
   const clearConsole = () => {
     conversationHistoryRef.current = [];
     lastQuestionRef.current = { text: "", time: 0 };
-
+    setInput("");
     setMessages([
       "NEXUS AI v3.0.0",
       "Console cleared.",
@@ -805,11 +873,9 @@ Important rules:
     if (value === "OFF" || value === "FAILED" || value === "OFFLINE") {
       return "25%";
     }
-
     if (value === "CHECKING" || value === "LOCKED") {
       return "50%";
     }
-
     return "85%";
   };
 
@@ -852,8 +918,20 @@ Important rules:
 
         <div className="header-right">
           <div className="time-box">
-            <h3>{new Date().toLocaleTimeString()}</h3>
-            <p>{new Date().toDateString()}</p>
+            <h3>
+              {currentDateTime.toLocaleTimeString("en-IN", {
+                timeZone: "Asia/Kolkata",
+              })}
+            </h3>
+            <p>
+              {currentDateTime.toLocaleDateString("en-IN", {
+                timeZone: "Asia/Kolkata",
+                weekday: "short",
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })}
+            </p>
           </div>
 
           <button
@@ -942,31 +1020,24 @@ Important rules:
                     case "Dashboard":
                       navigate("/");
                       break;
-
                     case "AI Chat":
                       setShowChat(true);
                       break;
-
                     case "Voice Command":
                       setShowVoice(true);
                       break;
-
                     case "System & Web":
                       setShowSystem(true);
                       break;
-
                     case "AI Analytics":
                       setShowAnalytics(true);
                       break;
-
                     case "File Analyzer":
                       setShowFileAnalyzer(true);
                       break;
-
                     case "Settings":
                       setShowSettings(true);
                       break;
-
                     default:
                       break;
                   }
@@ -994,11 +1065,9 @@ Important rules:
             ].map(([name, value]) => (
               <div className="status-row" key={name}>
                 <p>{name}</p>
-
                 <b className={isBadStatus(value) ? "bad-status" : ""}>
                   {value}
                 </b>
-
                 <div className="bar">
                   <span
                     className={isBadStatus(value) ? "danger-bar" : ""}
@@ -1021,7 +1090,6 @@ Important rules:
           <div className="ai-orb-wrap">
             <div className="circuit-left"></div>
             <div className="circuit-right"></div>
-
             <div className="rings"></div>
             <div className="rings ring-two"></div>
             <div className="rings ring-three"></div>
@@ -1052,10 +1120,13 @@ Important rules:
 
           <div className="voice-panel glass-panel">
             <h3>{input || "CLICK MIC AND ASK ANYTHING"}</h3>
-
             <div className="wave wave-left"></div>
 
-            <button className="mic-btn" type="button" onClick={activateVoice}>
+            <button
+              className="mic-btn"
+              type="button"
+              onClick={listening || voiceReady ? stopVoice : activateVoice}
+            >
               <FaMicrophone />
             </button>
 
@@ -1065,11 +1136,9 @@ Important rules:
               {listening
                 ? "LISTENING..."
                 : voiceReady
-                ? "AUTO LISTENING MODE ON"
-                : "CLICK MIC TO ASK"}
+                  ? "AUTO LISTENING MODE ON — CLICK TO STOP"
+                  : "CLICK MIC TO ASK"}
             </h4>
-
-          
           </div>
         </section>
 
@@ -1077,7 +1146,6 @@ Important rules:
           <div className="glass-panel console-panel">
             <div className="panel-title">
               <h3>AI CONSOLE</h3>
-
               <button
                 className="clear-console-btn"
                 type="button"
@@ -1105,11 +1173,21 @@ Important rules:
               <input
                 placeholder="Type your message..."
                 value={input === "Listening..." ? "" : input}
+                disabled={sending}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
               />
 
-              <button type="button" onClick={() => handleSend()}>
+              <button
+                type="button"
+                disabled={sending || !input.trim() || input === "Listening..."}
+                onClick={() => handleSend()}
+              >
                 <FaPaperPlane />
               </button>
             </div>
@@ -1117,7 +1195,6 @@ Important rules:
 
           <div className="glass-panel quick-panel">
             <h3>QUICK COMMANDS</h3>
-
             {quickCommands.map((item) => (
               <div
                 className="command-item"
@@ -1143,7 +1220,6 @@ Important rules:
             >
               ✕
             </button>
-
             <Chat />
           </div>
         </div>
@@ -1159,7 +1235,6 @@ Important rules:
             >
               ✕
             </button>
-
             <VoiceAssistant />
           </div>
         </div>
@@ -1175,7 +1250,6 @@ Important rules:
             >
               ✕
             </button>
-
             <SystemControl />
           </div>
         </div>
@@ -1191,7 +1265,6 @@ Important rules:
             >
               ✕
             </button>
-
             <FileAnalyzer />
           </div>
         </div>
@@ -1207,7 +1280,6 @@ Important rules:
             >
               ✕
             </button>
-
             <AIAnalytics />
           </div>
         </div>
@@ -1223,7 +1295,6 @@ Important rules:
             >
               ✕
             </button>
-
             <Settings />
           </div>
         </div>

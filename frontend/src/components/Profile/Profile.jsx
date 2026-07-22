@@ -5,14 +5,14 @@ import "./Profile.css";
 const defaultProfile = {
   name: "Karan Kabade",
   email: "karankabade7@gmail.com",
-  mobile: "",
+  mobile: "8265044456",
   education: "B.Sc Computer Science",
   college: "",
   skills: "React, Node.js, Express.js, MongoDB, PHP, MySQL",
-  github: "",
-  linkedin: "",
+  github: "https://github.com/Krnk25",
+  linkedin: "www.linkedin.com/in/karan-kabade",
   portfolio: "",
-  location: "",
+  location: "beed",
   bio: "",
 };
 

@@ -1,17 +1,13 @@
-const { app, BrowserWindow } = require("electron");
+const { app, BrowserWindow, session } = require("electron");
 const path = require("path");
 
-const isDev = !app.isPackaged;
+let mainWindow;
 
 function createWindow() {
-  const win = new BrowserWindow({
-    width: 1366,
-    height: 768,
-    minWidth: 1000,
-    minHeight: 700,
-    title: "Nexus AI",
-    backgroundColor: "#050505",
-    autoHideMenuBar: true,
+  mainWindow = new BrowserWindow({
+    width: 1280,
+    height: 800,
+
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -19,22 +15,32 @@ function createWindow() {
     },
   });
 
-  win.maximize();
-
-  if (isDev) {
-    win.loadURL("http://localhost:5173");
-    win.webContents.openDevTools();
+  if (app.isPackaged) {
+    mainWindow.loadFile(
+      path.join(__dirname, "../dist/index.html")
+    );
   } else {
-    win.loadFile(path.join(__dirname, "../dist/index.html"), {
-      hash: "/",
-    });
+    mainWindow.loadURL("http://localhost:5173");
   }
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  session.defaultSession.setPermissionRequestHandler(
+    (webContents, permission, callback) => {
+      if (permission === "media") {
+        callback(true);
+        return;
+      }
 
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
+      callback(false);
+    }
+  );
+
+  session.defaultSession.setPermissionCheckHandler(
+    (webContents, permission) => {
+      return permission === "media";
+    }
+  );
+
+  createWindow();
 });
