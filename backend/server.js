@@ -99,7 +99,25 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/activity", activityRoutes);
 app.use("/api/voice", voiceRoutes);
+
+
+
+app.get("/test-profile", (req, res) => {
+  res.json({
+    success: true,
+    message: "TEST PROFILE ROUTE WORKING 🚀"
+  });
+});
+
 app.use("/api/profile", profileRoutes);
+
+app.get("/test-profile", (req, res) => {
+  res.json({
+    success: true,
+    message: "Profile route area is working"
+  });
+});
+
 
 // ========================================
 // 404 HANDLER
