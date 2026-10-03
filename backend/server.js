@@ -102,6 +102,14 @@ app.use("/api/voice", voiceRoutes);
 
 
 
+app.get("/api/ai/test", (req, res) => {
+  res.json({
+    success: true,
+    message: "AI route is working 🚀"
+  });
+});
+
+
 app.get("/test-profile", (req, res) => {
   res.json({
     success: true,
