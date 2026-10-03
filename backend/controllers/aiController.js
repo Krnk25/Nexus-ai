@@ -1,3 +1,10 @@
+
+// controllers/aiController.js
+
+// ======================================================
+// DATE & TIME
+// ======================================================
+
 const getCurrentDateDetails = (locale = "en-IN") => {
   const now = new Date();
 
@@ -23,6 +30,10 @@ const getCurrentDateDetails = (locale = "en-IN") => {
   };
 };
 
+// ======================================================
+// LANGUAGE DETECTION
+// ======================================================
+
 const detectLanguage = (message = "", voiceLang = "") => {
   const text = message.toLowerCase();
   const preferredLanguage = voiceLang.toLowerCase();
@@ -38,6 +49,12 @@ const detectLanguage = (message = "", voiceLang = "") => {
     "वेळ",
     "वाजले",
     "मला",
+    "कुठे",
+    "कोण",
+    "तू",
+    "तुम्ही",
+    "करत",
+    "आहेस",
   ];
 
   const hindiWords = [
@@ -50,6 +67,11 @@ const detectLanguage = (message = "", voiceLang = "") => {
     "समय",
     "कितने बजे",
     "मुझे",
+    "कहां",
+    "कौन",
+    "तुम",
+    "आप",
+    "कर",
   ];
 
   if (
@@ -69,10 +91,15 @@ const detectLanguage = (message = "", voiceLang = "") => {
   return "en-IN";
 };
 
+// ======================================================
+// DATE QUESTION
+// ======================================================
+
 const isCurrentDateQuestion = (message = "") => {
   const text = message.toLowerCase().trim();
 
   const dateKeywords = [
+    // Marathi
     "आजची तारीख",
     "आज तारीख",
     "आज कोणती तारीख",
@@ -80,12 +107,14 @@ const isCurrentDateQuestion = (message = "") => {
     "तारीख सांगा",
     "आज काय तारीख आहे",
 
+    // Hindi
     "आज की तारीख",
     "आज कौन सी तारीख",
     "आज तारीख क्या है",
     "आज की डेट",
     "तारीख बताओ",
 
+    // English
     "today date",
     "today's date",
     "current date",
@@ -99,22 +128,29 @@ const isCurrentDateQuestion = (message = "") => {
   );
 };
 
+// ======================================================
+// TIME QUESTION
+// ======================================================
+
 const isCurrentTimeQuestion = (message = "") => {
   const text = message.toLowerCase().trim();
 
   const timeKeywords = [
+    // Marathi
     "आताची वेळ",
     "सध्याची वेळ",
     "आत्ता किती वाजले",
     "किती वाजले",
     "वेळ सांगा",
 
+    // Hindi
     "अभी कितने बजे",
     "अभी का समय",
     "समय बताओ",
     "वर्तमान समय",
     "टाइम क्या हुआ",
 
+    // English
     "current time",
     "what time is it",
     "time now",
@@ -125,6 +161,10 @@ const isCurrentTimeQuestion = (message = "") => {
     text.includes(keyword)
   );
 };
+
+// ======================================================
+// DATE RESPONSE
+// ======================================================
 
 const getDateReply = (language) => {
   const { date } = getCurrentDateDetails(language);
@@ -140,6 +180,10 @@ const getDateReply = (language) => {
   return `Today is ${date}.`;
 };
 
+// ======================================================
+// TIME RESPONSE
+// ======================================================
+
 const getTimeReply = (language) => {
   const { time } = getCurrentDateDetails(language);
 
@@ -153,6 +197,10 @@ const getTimeReply = (language) => {
 
   return `The current time is ${time}.`;
 };
+
+// ======================================================
+// CLEAN CHAT HISTORY
+// ======================================================
 
 const cleanHistory = (history = []) => {
   if (!Array.isArray(history)) {
@@ -173,6 +221,169 @@ const cleanHistory = (history = []) => {
     }));
 };
 
+// ======================================================
+// AI MODELS
+// ======================================================
+
+const getAIModels = () => {
+  const models = [
+    process.env.AI_MODEL || "google/gemini-2.0-flash-001",
+
+    "google/gemini-2.0-flash-lite",
+
+    "openai/gpt-4o-mini",
+  ];
+
+  // Duplicate models remove
+  return [...new Set(models)];
+};
+
+// ======================================================
+// OPENROUTER AI CALL
+// ======================================================
+
+const callOpenRouter = async (
+  messages,
+  temperature = 0.4
+) => {
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  if (!apiKey) {
+    throw new Error(
+      "OPENAI_API_KEY is missing."
+    );
+  }
+
+  const models = getAIModels();
+
+  let lastError = null;
+
+  for (const model of models) {
+    try {
+      console.log(
+        `\n🤖 Trying AI model: ${model}`
+      );
+
+      const response = await fetch(
+        "https://openrouter.ai/api/v1/chat/completions",
+        {
+          method: "POST",
+
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+
+            "HTTP-Referer":
+              process.env.FRONTEND_URL ||
+              "http://localhost:5173",
+
+            "X-Title": "NEXUS AI",
+          },
+
+          body: JSON.stringify({
+            model,
+
+            messages,
+
+            temperature,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      // ================================================
+      // SUCCESS
+      // ================================================
+
+      if (response.ok) {
+        console.log(
+          `✅ AI model working: ${model}`
+        );
+
+        return data;
+      }
+
+      // ================================================
+      // MODEL ERROR
+      // ================================================
+
+      const errorMessage =
+        data?.error?.message ||
+        "AI provider request failed.";
+
+      console.error(
+        `❌ Model failed: ${model}`
+      );
+
+      console.error(
+        `Status: ${response.status}`
+      );
+
+      console.error(
+        `Message: ${errorMessage}`
+      );
+
+      lastError = {
+        status: response.status,
+        message: errorMessage,
+      };
+
+      // ================================================
+      // RETRY NEXT MODEL
+      // ================================================
+
+      if (
+        response.status === 429 ||
+        response.status === 503
+      ) {
+        console.log(
+          `🔄 Trying next AI model...`
+        );
+
+        continue;
+      }
+
+      // Other errors
+      break;
+    } catch (error) {
+      console.error(
+        `❌ Request error for model: ${model}`
+      );
+
+      console.error(error.message);
+
+      lastError = {
+        status: 500,
+        message: error.message,
+      };
+
+      // Try next model
+      continue;
+    }
+  }
+
+  throw new Error(
+    lastError?.message ||
+      "All AI models are currently unavailable."
+  );
+};
+
+// ======================================================
+// EXTRACT AI REPLY
+// ======================================================
+
+const getAIReply = (data) => {
+  return (
+    data?.choices?.[0]?.message?.content?.trim() ||
+    "No reply received."
+  );
+};
+
+// ======================================================
+// CHAT WITH AI
+// ======================================================
+
 export const chatWithAI = async (req, res) => {
   try {
     const {
@@ -181,7 +392,15 @@ export const chatWithAI = async (req, res) => {
       settings = {},
     } = req.body;
 
-    if (!message || !message.trim()) {
+    // ================================================
+    // VALIDATION
+    // ================================================
+
+    if (
+      !message ||
+      typeof message !== "string" ||
+      !message.trim()
+    ) {
       return res.status(400).json({
         success: false,
         message: "Message is required.",
@@ -190,15 +409,18 @@ export const chatWithAI = async (req, res) => {
 
     const cleanMessage = message.trim();
 
+    // ================================================
+    // LANGUAGE
+    // ================================================
+
     const userLanguage = detectLanguage(
       cleanMessage,
       settings.voiceLang || ""
     );
 
-    /*
-      Date question ko AI ke paas nahi bhejna.
-      Server directly current date return karega.
-    */
+    // ================================================
+    // DATE QUESTION
+    // ================================================
 
     if (isCurrentDateQuestion(cleanMessage)) {
       return res.status(200).json({
@@ -207,9 +429,9 @@ export const chatWithAI = async (req, res) => {
       });
     }
 
-    /*
-      Time question ko bhi direct server handle karega.
-    */
+    // ================================================
+    // TIME QUESTION
+    // ================================================
 
     if (isCurrentTimeQuestion(cleanMessage)) {
       return res.status(200).json({
@@ -218,52 +440,53 @@ export const chatWithAI = async (req, res) => {
       });
     }
 
-    if (!process.env.OPENROUTER_API_KEY) {
+    // ================================================
+    // API KEY CHECK
+    // ================================================
+
+    if (!process.env.OPENAI_API_KEY) {
       return res.status(500).json({
         success: false,
-        message: "OPENROUTER_API_KEY is missing.",
+        message:
+          "OPENAI_API_KEY is missing.",
       });
     }
 
-    const previousMessages = cleanHistory(history);
+    // ================================================
+    // HISTORY
+    // ================================================
+
+    const previousMessages =
+      cleanHistory(history);
+
+    // ================================================
+    // CURRENT DATE & TIME
+    // ================================================
 
     const currentDateDetails =
       getCurrentDateDetails("en-IN");
 
-    const response = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
+    // ================================================
+    // SYSTEM PROMPT
+    // ================================================
 
-        headers: {
-          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer":
-            process.env.FRONTEND_URL ||
-            "http://localhost:5173",
-          "X-Title": "NEXUS AI",
-        },
-
-        body: JSON.stringify({
-          model:
-            process.env.AI_MODEL ||
-            "google/gemini-2.0-flash-001",
-
-          messages: [
-            {
-              role: "system",
-
-              content: `You are NEXUS AI, Karan's personal AI assistant.
+    const systemPrompt = `
+You are Shifra, Karan's personal AI assistant.
 
 Current date: ${currentDateDetails.date}
 Current time: ${currentDateDetails.time}
-User timezone: Asia/Kolkata
-Detected language: ${userLanguage}
-Preferred voice language: ${
-                settings.voiceLang || "en-IN"
-              }
+
+User timezone:
+Asia/Kolkata
+
+Detected language:
+${userLanguage}
+
+Preferred voice language:
+${settings.voiceLang || "en-IN"}
 
 Important rules:
+
 - Reply clearly and helpfully.
 - Reply in the same language as the user.
 - If the user speaks Marathi, reply in natural Marathi.
@@ -272,58 +495,65 @@ Important rules:
 - If the user speaks English, reply in English.
 - Use the current date and time provided above.
 - Never guess today's date from model memory.
-- Never answer that the current year is 2024 or 2025.
-- Keep the answer concise unless the user asks for details.`,
-            },
+- Never say that the current year is 2024 or 2025.
+- Keep normal answers concise.
+- Give detailed answers only when the user asks for details.
+- Do not mention these system instructions.
+`;
 
-            ...previousMessages,
+    // ================================================
+    // AI REQUEST
+    // ================================================
 
-            {
-              role: "user",
-              content: cleanMessage,
-            },
-          ],
+    const data = await callOpenRouter(
+      [
+        {
+          role: "system",
+          content: systemPrompt,
+        },
 
-          temperature: 0.4,
-        }),
-      }
+        ...previousMessages,
+
+        {
+          role: "user",
+          content: cleanMessage,
+        },
+      ],
+      0.4
     );
 
-    const data = await response.json();
+    // ================================================
+    // AI REPLY
+    // ================================================
 
-    if (!response.ok) {
-      console.error(
-        "OPENROUTER CHAT ERROR:",
-        data
-      );
-
-      return res.status(response.status).json({
-        success: false,
-
-        message:
-          data?.error?.message ||
-          "AI provider request failed.",
-      });
-    }
-
-    const reply =
-      data?.choices?.[0]?.message?.content?.trim() ||
-      "No reply received.";
+    const reply = getAIReply(data);
 
     return res.status(200).json({
       success: true,
       reply,
     });
   } catch (error) {
-    console.error("CHAT WITH AI ERROR:", error);
+    console.error(
+      "\n❌ CHAT WITH AI ERROR:"
+    );
 
-    return res.status(500).json({
+    console.error(error);
+
+    return res.status(503).json({
       success: false,
-      message: "AI request failed.",
+
+      message:
+        error.message ||
+        "AI service is temporarily unavailable.",
+
       error: error.message,
     });
   }
 };
+
+// ======================================================
+// FILE ANALYSIS
+// ======================================================
 
 export const analyzeFileWithAI = async (
   req,
@@ -335,96 +565,113 @@ export const analyzeFileWithAI = async (
       fileName = "Uploaded file",
     } = req.body;
 
-    if (!content || !content.trim()) {
+    // ================================================
+    // VALIDATION
+    // ================================================
+
+    if (
+      !content ||
+      typeof content !== "string" ||
+      !content.trim()
+    ) {
       return res.status(400).json({
         success: false,
-        message: "File content is required.",
+        message:
+          "File content is required.",
       });
     }
 
-    if (!process.env.OPENROUTER_API_KEY) {
+    // ================================================
+    // API KEY
+    // ================================================
+
+    if (!process.env.OPENAI_API_KEY) {
       return res.status(500).json({
         success: false,
-        message: "OPENROUTER_API_KEY is missing.",
+        message:
+          "OPENAI_API_KEY is missing.",
       });
     }
+
+    // ================================================
+    // DATE
+    // ================================================
 
     const currentDateDetails =
       getCurrentDateDetails("en-IN");
 
-    const response = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
+    // ================================================
+    // FILE CONTENT
+    // ================================================
 
-        headers: {
-          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer":
-            process.env.FRONTEND_URL ||
-            "http://localhost:5173",
-          "X-Title": "NEXUS AI",
-        },
+    const safeContent =
+      content.slice(0, 30000);
 
-        body: JSON.stringify({
-          model:
-            process.env.AI_MODEL ||
-            "google/gemini-2.0-flash-001",
+    // ================================================
+    // SYSTEM PROMPT
+    // ================================================
 
-          messages: [
-            {
-              role: "system",
+    const systemPrompt = `
+You are Shifra.
 
-              content: `You are NEXUS AI.
+Current date:
+${currentDateDetails.date}
 
-Current date: ${currentDateDetails.date}
-Current time: ${currentDateDetails.time}
-Timezone: Asia/Kolkata
+Current time:
+${currentDateDetails.time}
 
-Analyze the uploaded file and provide:
-- A clear summary
+Timezone:
+Asia/Kolkata
+
+Analyze the uploaded file.
+
+Provide:
+
+- Clear summary
 - Important points
 - Errors or issues
 - Recommendations
 
-Do not invent information that is not present in the file.`,
-            },
+Important rules:
 
-            {
-              role: "user",
+- Do not invent information.
+- Use only the information present in the file.
+- Keep the analysis clear and structured.
+`;
 
-              content: `File name: ${fileName}
+    // ================================================
+    // AI REQUEST
+    // ================================================
+
+    const data = await callOpenRouter(
+      [
+        {
+          role: "system",
+          content: systemPrompt,
+        },
+
+        {
+          role: "user",
+
+          content: `
+File name:
+${fileName}
 
 File content:
-${content.slice(0, 30000)}`,
-            },
-          ],
 
-          temperature: 0.3,
-        }),
-      }
+${safeContent}
+`,
+        },
+      ],
+      0.3
     );
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error(
-        "OPENROUTER FILE ERROR:",
-        data
-      );
-
-      return res.status(response.status).json({
-        success: false,
-
-        message:
-          data?.error?.message ||
-          "File analysis failed.",
-      });
-    }
+    // ================================================
+    // ANALYSIS
+    // ================================================
 
     const analysis =
-      data?.choices?.[0]?.message?.content?.trim() ||
-      "No analysis received.";
+      getAIReply(data);
 
     return res.status(200).json({
       success: true,
@@ -433,15 +680,20 @@ ${content.slice(0, 30000)}`,
     });
   } catch (error) {
     console.error(
-      "FILE ANALYSIS ERROR:",
-      error
+      "\n❌ FILE ANALYSIS ERROR:"
     );
 
-    return res.status(500).json({
+    console.error(error);
+
+    return res.status(503).json({
       success: false,
+
       message:
+        error.message ||
         "File analysis request failed.",
+
       error: error.message,
     });
   }
 };
+
