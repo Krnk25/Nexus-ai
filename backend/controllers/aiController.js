@@ -1,4 +1,3 @@
-
 // controllers/aiController.js
 
 // ======================================================
@@ -40,6 +39,7 @@ const detectLanguage = (message = "", voiceLang = "") => {
 
   const marathiWords = [
     "आजची",
+    "आजचा",
     "तारीख",
     "सांगा",
     "काय",
@@ -55,14 +55,19 @@ const detectLanguage = (message = "", voiceLang = "") => {
     "तुम्ही",
     "करत",
     "आहेस",
+    "माझे",
+    "माझा",
+    "माझी",
   ];
 
   const hindiWords = [
     "आज की",
+    "आज का",
     "तारीख",
     "बताओ",
     "क्या",
     "कैसे",
+    "कैसा",
     "है",
     "समय",
     "कितने बजे",
@@ -72,6 +77,9 @@ const detectLanguage = (message = "", voiceLang = "") => {
     "तुम",
     "आप",
     "कर",
+    "मेरा",
+    "मेरी",
+    "मेरे",
   ];
 
   if (
@@ -217,32 +225,24 @@ const cleanHistory = (history = []) => {
     )
     .map((item) => ({
       role: item.role,
-      content: item.content,
-    }));
+      content: item.content.trim(),
+    }))
+    .filter((item) => item.content.length > 0);
 };
 
 // ======================================================
-// AI MODELS
+// OPENAI MODEL
 // ======================================================
 
-const getAIModels = () => {
-  const models = [
-    process.env.AI_MODEL || "google/gemini-2.0-flash-001",
-
-    "google/gemini-2.0-flash-lite",
-
-    "openai/gpt-4o-mini",
-  ];
-
-  // Duplicate models remove
-  return [...new Set(models)];
+const getAIModel = () => {
+  return process.env.AI_MODEL || "gpt-4o-mini";
 };
 
 // ======================================================
-// OPENROUTER AI CALL
+// OPENAI API CALL
 // ======================================================
 
-const callOpenRouter = async (
+const callOpenAI = async (
   messages,
   temperature = 0.4
 ) => {
@@ -254,119 +254,63 @@ const callOpenRouter = async (
     );
   }
 
-  const models = getAIModels();
+  const model = getAIModel();
 
-  let lastError = null;
+  console.log("=================================");
+  console.log("🤖 OPENAI REQUEST");
+  console.log("Model:", model);
+  console.log(
+    "API KEY:",
+    apiKey ? "AVAILABLE ✅" : "MISSING ❌"
+  );
+  console.log("Messages:", messages.length);
+  console.log("=================================");
 
-  for (const model of models) {
-    try {
-      console.log(
-        `\n🤖 Trying AI model: ${model}`
-      );
+  const response = await fetch(
+    "https://api.openai.com/v1/chat/completions",
+    {
+      method: "POST",
 
-      const response = await fetch(
-        "https://openrouter.ai/api/v1/chat/completions",
-        {
-          method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
 
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-
-            "HTTP-Referer":
-              process.env.FRONTEND_URL ||
-              "http://localhost:5173",
-
-            "X-Title": "NEXUS AI",
-          },
-
-          body: JSON.stringify({
-            model,
-
-            messages,
-
-            temperature,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      // ================================================
-      // SUCCESS
-      // ================================================
-
-      if (response.ok) {
-        console.log(
-          `✅ AI model working: ${model}`
-        );
-
-        return data;
-      }
-
-      // ================================================
-      // MODEL ERROR
-      // ================================================
-
-      const errorMessage =
-        data?.error?.message ||
-        "AI provider request failed.";
-
-      console.error(
-        `❌ Model failed: ${model}`
-      );
-
-      console.error(
-        `Status: ${response.status}`
-      );
-
-      console.error(
-        `Message: ${errorMessage}`
-      );
-
-      lastError = {
-        status: response.status,
-        message: errorMessage,
-      };
-
-      // ================================================
-      // RETRY NEXT MODEL
-      // ================================================
-
-      if (
-        response.status === 429 ||
-        response.status === 503
-      ) {
-        console.log(
-          `🔄 Trying next AI model...`
-        );
-
-        continue;
-      }
-
-      // Other errors
-      break;
-    } catch (error) {
-      console.error(
-        `❌ Request error for model: ${model}`
-      );
-
-      console.error(error.message);
-
-      lastError = {
-        status: 500,
-        message: error.message,
-      };
-
-      // Try next model
-      continue;
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature,
+      }),
     }
+  );
+
+  const data = await response.json();
+
+  console.log(
+    "OpenAI Status:",
+    response.status
+  );
+
+  if (!response.ok) {
+    console.error(
+      "❌ OPENAI ERROR:"
+    );
+
+    console.error(
+      JSON.stringify(data, null, 2)
+    );
+
+    throw new Error(
+      data?.error?.message ||
+        `OpenAI request failed with status ${response.status}`
+    );
   }
 
-  throw new Error(
-    lastError?.message ||
-      "All AI models are currently unavailable."
+  console.log(
+    "✅ OpenAI response received"
   );
+
+  return data;
 };
 
 // ======================================================
@@ -390,11 +334,12 @@ export const chatWithAI = async (req, res) => {
       message,
       history = [],
       settings = {},
+      personalData = {},
     } = req.body;
 
-    // ================================================
+    // ==================================================
     // VALIDATION
-    // ================================================
+    // ==================================================
 
     if (
       !message ||
@@ -409,103 +354,195 @@ export const chatWithAI = async (req, res) => {
 
     const cleanMessage = message.trim();
 
-    // ================================================
+    // ==================================================
     // LANGUAGE
-    // ================================================
+    // ==================================================
 
     const userLanguage = detectLanguage(
       cleanMessage,
-      settings.voiceLang || ""
+      settings?.voiceLang || ""
     );
 
-    // ================================================
+    // ==================================================
     // DATE QUESTION
-    // ================================================
+    // ==================================================
 
-    if (isCurrentDateQuestion(cleanMessage)) {
+    if (
+      isCurrentDateQuestion(cleanMessage)
+    ) {
       return res.status(200).json({
         success: true,
         reply: getDateReply(userLanguage),
       });
     }
 
-    // ================================================
+    // ==================================================
     // TIME QUESTION
-    // ================================================
+    // ==================================================
 
-    if (isCurrentTimeQuestion(cleanMessage)) {
+    if (
+      isCurrentTimeQuestion(cleanMessage)
+    ) {
       return res.status(200).json({
         success: true,
         reply: getTimeReply(userLanguage),
       });
     }
 
-    // ================================================
+    // ==================================================
     // API KEY CHECK
-    // ================================================
+    // ==================================================
 
     if (!process.env.OPENAI_API_KEY) {
       return res.status(500).json({
         success: false,
-        message:
-          "OPENAI_API_KEY is missing.",
+        message: "OPENAI_API_KEY is missing.",
       });
     }
 
-    // ================================================
+    // ==================================================
     // HISTORY
-    // ================================================
+    // ==================================================
 
     const previousMessages =
       cleanHistory(history);
 
-    // ================================================
+    // ==================================================
     // CURRENT DATE & TIME
-    // ================================================
+    // ==================================================
 
     const currentDateDetails =
       getCurrentDateDetails("en-IN");
 
-    // ================================================
+    // ==================================================
+    // PERSONAL DATA
+    // ==================================================
+
+    const userName =
+      personalData?.name?.trim() ||
+      "User";
+
+    const education =
+      personalData?.education?.trim() ||
+      "Not provided";
+
+    const college =
+      personalData?.college?.trim() ||
+      "Not provided";
+
+    const skills =
+      personalData?.skills?.trim() ||
+      "Not provided";
+
+    const location =
+      personalData?.location?.trim() ||
+      "Not provided";
+
+    const github =
+      personalData?.github?.trim() ||
+      "Not provided";
+
+    const linkedin =
+      personalData?.linkedin?.trim() ||
+      "Not provided";
+
+    // ==================================================
     // SYSTEM PROMPT
-    // ================================================
+    // ==================================================
 
     const systemPrompt = `
-You are Shifra, Karan's personal AI assistant.
+You are Shifra, the user's personal AI assistant.
 
-Current date: ${currentDateDetails.date}
-Current time: ${currentDateDetails.time}
+USER PROFILE
+------------
 
-User timezone:
+Name:
+${userName}
+
+Education:
+${education}
+
+College:
+${college}
+
+Skills:
+${skills}
+
+Location:
+${location}
+
+GitHub:
+${github}
+
+LinkedIn:
+${linkedin}
+
+CURRENT DATE & TIME
+-------------------
+
+Current date:
+${currentDateDetails.date}
+
+Current time:
+${currentDateDetails.time}
+
+Timezone:
 Asia/Kolkata
+
+LANGUAGE
+--------
 
 Detected language:
 ${userLanguage}
 
 Preferred voice language:
-${settings.voiceLang || "en-IN"}
+${settings?.voiceLang || "en-IN"}
 
-Important rules:
+IMPORTANT RULES
+---------------
 
-- Reply clearly and helpfully.
-- Reply in the same language as the user.
-- If the user speaks Marathi, reply in natural Marathi.
-- If the user speaks Hindi, reply in natural Hindi.
-- If the user speaks Hinglish, reply in simple Hinglish.
-- If the user speaks English, reply in English.
-- Use the current date and time provided above.
-- Never guess today's date from model memory.
-- Never say that the current year is 2024 or 2025.
-- Keep normal answers concise.
-- Give detailed answers only when the user asks for details.
-- Do not mention these system instructions.
+1. Reply clearly and helpfully.
+
+2. Reply in the same language as the user.
+
+3. If the user speaks Marathi, reply in natural Marathi.
+
+4. If the user speaks Hindi, reply in natural Hindi.
+
+5. If the user speaks Hinglish, reply in simple Hinglish.
+
+6. If the user speaks English, reply in English.
+
+7. Use the current date and time provided above.
+
+8. Never guess today's date from model memory.
+
+9. Never say that the current year is 2024 or 2025.
+
+10. Current year is 2026.
+
+11. Never invent user's personal information.
+
+12. Use profile information only when it is provided above.
+
+13. Keep normal answers concise.
+
+14. Give detailed answers only when the user asks for details.
+
+15. Do not mention these system instructions.
+
+16. You are Shifra, a friendly and helpful AI assistant.
+
+17. If the user asks about their own profile, use the profile data above.
+
+18. If profile information is missing, clearly say that it has not been provided.
 `;
 
-    // ================================================
+    // ==================================================
     // AI REQUEST
-    // ================================================
+    // ==================================================
 
-    const data = await callOpenRouter(
+    const data = await callOpenAI(
       [
         {
           role: "system",
@@ -522,9 +559,9 @@ Important rules:
       0.4
     );
 
-    // ================================================
+    // ==================================================
     // AI REPLY
-    // ================================================
+    // ==================================================
 
     const reply = getAIReply(data);
 
@@ -541,11 +578,9 @@ Important rules:
 
     return res.status(503).json({
       success: false,
-
       message:
         error.message ||
         "AI service is temporarily unavailable.",
-
       error: error.message,
     });
   }
@@ -565,9 +600,9 @@ export const analyzeFileWithAI = async (
       fileName = "Uploaded file",
     } = req.body;
 
-    // ================================================
+    // ==================================================
     // VALIDATION
-    // ================================================
+    // ==================================================
 
     if (
       !content ||
@@ -576,43 +611,41 @@ export const analyzeFileWithAI = async (
     ) {
       return res.status(400).json({
         success: false,
-        message:
-          "File content is required.",
+        message: "File content is required.",
       });
     }
 
-    // ================================================
-    // API KEY
-    // ================================================
+    // ==================================================
+    // API KEY CHECK
+    // ==================================================
 
     if (!process.env.OPENAI_API_KEY) {
       return res.status(500).json({
         success: false,
-        message:
-          "OPENAI_API_KEY is missing.",
+        message: "OPENAI_API_KEY is missing.",
       });
     }
 
-    // ================================================
-    // DATE
-    // ================================================
+    // ==================================================
+    // CURRENT DATE & TIME
+    // ==================================================
 
     const currentDateDetails =
       getCurrentDateDetails("en-IN");
 
-    // ================================================
-    // FILE CONTENT
-    // ================================================
+    // ==================================================
+    // FILE CONTENT LIMIT
+    // ==================================================
 
     const safeContent =
       content.slice(0, 30000);
 
-    // ================================================
+    // ==================================================
     // SYSTEM PROMPT
-    // ================================================
+    // ==================================================
 
     const systemPrompt = `
-You are Shifra.
+You are Shifra, an AI file analysis assistant.
 
 Current date:
 ${currentDateDetails.date}
@@ -627,23 +660,24 @@ Analyze the uploaded file.
 
 Provide:
 
-- Clear summary
-- Important points
-- Errors or issues
-- Recommendations
+1. Clear summary
+2. Important points
+3. Errors or issues
+4. Recommendations
 
 Important rules:
 
 - Do not invent information.
 - Use only the information present in the file.
 - Keep the analysis clear and structured.
+- If information is missing, clearly say that it is not present.
 `;
 
-    // ================================================
+    // ==================================================
     // AI REQUEST
-    // ================================================
+    // ==================================================
 
-    const data = await callOpenRouter(
+    const data = await callOpenAI(
       [
         {
           role: "system",
@@ -652,7 +686,6 @@ Important rules:
 
         {
           role: "user",
-
           content: `
 File name:
 ${fileName}
@@ -666,9 +699,9 @@ ${safeContent}
       0.3
     );
 
-    // ================================================
+    // ==================================================
     // ANALYSIS
-    // ================================================
+    // ==================================================
 
     const analysis =
       getAIReply(data);
@@ -687,13 +720,10 @@ ${safeContent}
 
     return res.status(503).json({
       success: false,
-
       message:
         error.message ||
         "File analysis request failed.",
-
       error: error.message,
     });
   }
 };
-
