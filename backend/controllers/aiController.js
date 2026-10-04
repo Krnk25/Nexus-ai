@@ -100,7 +100,7 @@ const detectLanguage = (message = "", voiceLang = "") => {
 };
 
 // ======================================================
-// DATE QUESTION
+// CURRENT DATE QUESTION
 // ======================================================
 
 const isCurrentDateQuestion = (message = "") => {
@@ -137,7 +137,7 @@ const isCurrentDateQuestion = (message = "") => {
 };
 
 // ======================================================
-// TIME QUESTION
+// CURRENT TIME QUESTION
 // ======================================================
 
 const isCurrentTimeQuestion = (message = "") => {
@@ -231,69 +231,90 @@ const cleanHistory = (history = []) => {
 };
 
 // ======================================================
-// OPENAI MODEL
+// GEMINI MODEL
 // ======================================================
 
 const getAIModel = () => {
-  return process.env.AI_MODEL || "gpt-4o-mini";
+  return (
+    process.env.GEMINI_MODEL ||
+    "gemini-3.8-flash"
+  );
 };
 
 // ======================================================
-// OPENAI API CALL
+// GEMINI API CALL
 // ======================================================
 
-const callOpenAI = async (
-  messages,
+const callGemini = async (
+  contents,
+  systemInstruction = "",
   temperature = 0.4
 ) => {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
     throw new Error(
-      "OPENAI_API_KEY is missing."
+      "GEMINI_API_KEY is missing."
     );
   }
 
   const model = getAIModel();
 
   console.log("=================================");
-  console.log("🤖 OPENAI REQUEST");
+  console.log("🤖 GEMINI REQUEST");
   console.log("Model:", model);
   console.log(
     "API KEY:",
     apiKey ? "AVAILABLE ✅" : "MISSING ❌"
   );
-  console.log("Messages:", messages.length);
+  console.log(
+    "Messages:",
+    contents.length
+  );
   console.log("=================================");
 
-  const response = await fetch(
-    "https://api.openai.com/v1/chat/completions",
-    {
-      method: "POST",
+  const url =
+    `https://generativelanguage.googleapis.com/v1beta/models/` +
+    `${model}:generateContent`;
 
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
+  const body = {
+    contents,
+    generationConfig: {
+      temperature,
+    },
+  };
 
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature,
-      }),
-    }
-  );
+  if (systemInstruction) {
+    body.system_instruction = {
+      parts: [
+        {
+          text: systemInstruction,
+        },
+      ],
+    };
+  }
+
+  const response = await fetch(url, {
+    method: "POST",
+
+    headers: {
+      "x-goog-api-key": apiKey,
+      "Content-Type": "application/json",
+    },
+
+    body: JSON.stringify(body),
+  });
 
   const data = await response.json();
 
   console.log(
-    "OpenAI Status:",
+    "Gemini Status:",
     response.status
   );
 
   if (!response.ok) {
     console.error(
-      "❌ OPENAI ERROR:"
+      "❌ GEMINI ERROR:"
     );
 
     console.error(
@@ -302,26 +323,31 @@ const callOpenAI = async (
 
     throw new Error(
       data?.error?.message ||
-        `OpenAI request failed with status ${response.status}`
+        `Gemini request failed with status ${response.status}`
     );
   }
 
   console.log(
-    "✅ OpenAI response received"
+    "✅ Gemini response received"
   );
 
   return data;
 };
 
 // ======================================================
-// EXTRACT AI REPLY
+// EXTRACT GEMINI REPLY
 // ======================================================
 
 const getAIReply = (data) => {
-  return (
-    data?.choices?.[0]?.message?.content?.trim() ||
-    "No reply received."
-  );
+  const parts =
+    data?.candidates?.[0]?.content?.parts || [];
+
+  const text = parts
+    .map((part) => part?.text || "")
+    .join("")
+    .trim();
+
+  return text || "No reply received.";
 };
 
 // ======================================================
@@ -393,19 +419,34 @@ export const chatWithAI = async (req, res) => {
     // API KEY CHECK
     // ==================================================
 
-    if (!process.env.OPENAI_API_KEY) {
+    if (!process.env.GEMINI_API_KEY) {
       return res.status(500).json({
         success: false,
-        message: "OPENAI_API_KEY is missing.",
+        message: "GEMINI_API_KEY is missing.",
       });
     }
 
     // ==================================================
-    // HISTORY
+    // CHAT HISTORY
     // ==================================================
 
     const previousMessages =
       cleanHistory(history);
+
+    const geminiHistory = previousMessages.map(
+      (item) => ({
+        role:
+          item.role === "assistant"
+            ? "model"
+            : "user",
+
+        parts: [
+          {
+            text: item.content,
+          },
+        ],
+      })
+    );
 
     // ==================================================
     // CURRENT DATE & TIME
@@ -419,32 +460,46 @@ export const chatWithAI = async (req, res) => {
     // ==================================================
 
     const userName =
-      personalData?.name?.trim() ||
-      "User";
+      typeof personalData?.name === "string" &&
+      personalData.name.trim()
+        ? personalData.name.trim()
+        : "User";
 
     const education =
-      personalData?.education?.trim() ||
-      "Not provided";
+      typeof personalData?.education === "string" &&
+      personalData.education.trim()
+        ? personalData.education.trim()
+        : "Not provided";
 
     const college =
-      personalData?.college?.trim() ||
-      "Not provided";
+      typeof personalData?.college === "string" &&
+      personalData.college.trim()
+        ? personalData.college.trim()
+        : "Not provided";
 
     const skills =
-      personalData?.skills?.trim() ||
-      "Not provided";
+      typeof personalData?.skills === "string" &&
+      personalData.skills.trim()
+        ? personalData.skills.trim()
+        : "Not provided";
 
     const location =
-      personalData?.location?.trim() ||
-      "Not provided";
+      typeof personalData?.location === "string" &&
+      personalData.location.trim()
+        ? personalData.location.trim()
+        : "Not provided";
 
     const github =
-      personalData?.github?.trim() ||
-      "Not provided";
+      typeof personalData?.github === "string" &&
+      personalData.github.trim()
+        ? personalData.github.trim()
+        : "Not provided";
 
     const linkedin =
-      personalData?.linkedin?.trim() ||
-      "Not provided";
+      typeof personalData?.linkedin === "string" &&
+      personalData.linkedin.trim()
+        ? personalData.linkedin.trim()
+        : "Not provided";
 
     // ==================================================
     // SYSTEM PROMPT
@@ -517,13 +572,13 @@ IMPORTANT RULES
 
 8. Never guess today's date from model memory.
 
-9. Never say that the current year is 2024 or 2025.
+9. Current year is 2026.
 
-10. Current year is 2026.
+10. Never invent user's personal information.
 
-11. Never invent user's personal information.
+11. Use profile information only when it is provided above.
 
-12. Use profile information only when it is provided above.
+12. If profile information is missing, say that it has not been provided.
 
 13. Keep normal answers concise.
 
@@ -533,29 +588,37 @@ IMPORTANT RULES
 
 16. You are Shifra, a friendly and helpful AI assistant.
 
-17. If the user asks about their own profile, use the profile data above.
+17. If the user asks about their profile, use the profile data above.
 
-18. If profile information is missing, clearly say that it has not been provided.
+18. If the user speaks simple Hinglish, respond in simple Hinglish.
+
+19. Avoid unnecessarily complicated words.
 `;
 
     // ==================================================
-    // AI REQUEST
+    // GEMINI CONTENTS
     // ==================================================
 
-    const data = await callOpenAI(
-      [
-        {
-          role: "system",
-          content: systemPrompt,
-        },
+    const contents = [
+      ...geminiHistory,
 
-        ...previousMessages,
+      {
+        role: "user",
+        parts: [
+          {
+            text: cleanMessage,
+          },
+        ],
+      },
+    ];
 
-        {
-          role: "user",
-          content: cleanMessage,
-        },
-      ],
+    // ==================================================
+    // GEMINI REQUEST
+    // ==================================================
+
+    const data = await callGemini(
+      contents,
+      systemPrompt,
       0.4
     );
 
@@ -571,7 +634,7 @@ IMPORTANT RULES
     });
   } catch (error) {
     console.error(
-      "\n❌ CHAT WITH AI ERROR:"
+      "\n❌ CHAT WITH GEMINI ERROR:"
     );
 
     console.error(error);
@@ -580,7 +643,7 @@ IMPORTANT RULES
       success: false,
       message:
         error.message ||
-        "AI service is temporarily unavailable.",
+        "Gemini AI service is temporarily unavailable.",
       error: error.message,
     });
   }
@@ -616,18 +679,18 @@ export const analyzeFileWithAI = async (
     }
 
     // ==================================================
-    // API KEY CHECK
+    // API KEY
     // ==================================================
 
-    if (!process.env.OPENAI_API_KEY) {
+    if (!process.env.GEMINI_API_KEY) {
       return res.status(500).json({
         success: false,
-        message: "OPENAI_API_KEY is missing.",
+        message: "GEMINI_API_KEY is missing.",
       });
     }
 
     // ==================================================
-    // CURRENT DATE & TIME
+    // DATE & TIME
     // ==================================================
 
     const currentDateDetails =
@@ -668,25 +731,23 @@ Provide:
 Important rules:
 
 - Do not invent information.
-- Use only the information present in the file.
+- Use only information present in the file.
 - Keep the analysis clear and structured.
-- If information is missing, clearly say that it is not present.
+- If information is missing, clearly say it is not present.
+- Do not assume information that is not in the file.
 `;
 
     // ==================================================
-    // AI REQUEST
+    // FILE CONTENT
     // ==================================================
 
-    const data = await callOpenAI(
-      [
-        {
-          role: "system",
-          content: systemPrompt,
-        },
+    const contents = [
+      {
+        role: "user",
 
-        {
-          role: "user",
-          content: `
+        parts: [
+          {
+            text: `
 File name:
 ${fileName}
 
@@ -694,8 +755,18 @@ File content:
 
 ${safeContent}
 `,
-        },
-      ],
+          },
+        ],
+      },
+    ];
+
+    // ==================================================
+    // GEMINI REQUEST
+    // ==================================================
+
+    const data = await callGemini(
+      contents,
+      systemPrompt,
       0.3
     );
 
@@ -722,7 +793,7 @@ ${safeContent}
       success: false,
       message:
         error.message ||
-        "File analysis request failed.",
+        "Gemini file analysis failed.",
       error: error.message,
     });
   }
