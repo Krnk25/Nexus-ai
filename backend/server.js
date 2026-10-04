@@ -40,10 +40,11 @@ console.log(
 );
 
 // ========================================
-// DATABASE CONNECTION
+// DATABASE
 // ========================================
 
 connectDB();
+
 // ========================================
 // EXPRESS APP
 // ========================================
@@ -101,38 +102,16 @@ app.use("/api/activity", activityRoutes);
 app.use("/api/voice", voiceRoutes);
 app.use("/api/profile", profileRoutes);
 
+// ========================================
+// AI TEST ROUTE
+// ========================================
 
 app.get("/api/ai/test", (req, res) => {
   res.json({
     success: true,
-    message: "AI route is working 🚀"
+    message: "AI route is working 🚀",
   });
 });
-
-
-app.get("/api/profile", (req, res) => {
-  res.json({
-    success: true,
-    message: "Profile route working 🚀"
-  });
-});
-
-app.get("/test-profile", (req, res) => {
-  res.json({
-    success: true,
-    message: "TEST PROFILE ROUTE WORKING 🚀"
-  });
-});
-
-
-
-app.get("/test-profile", (req, res) => {
-  res.json({
-    success: true,
-    message: "Profile route area is working"
-  });
-});
-
 
 // ========================================
 // 404 HANDLER
