@@ -99,7 +99,7 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/activity", activityRoutes);
 app.use("/api/voice", voiceRoutes);
-
+app.use("/api/profile", profileRoutes);
 
 
 app.get("/api/ai/test", (req, res) => {
@@ -110,6 +110,13 @@ app.get("/api/ai/test", (req, res) => {
 });
 
 
+app.get("/api/profile", (req, res) => {
+  res.json({
+    success: true,
+    message: "Profile route working 🚀"
+  });
+});
+
 app.get("/test-profile", (req, res) => {
   res.json({
     success: true,
@@ -117,7 +124,7 @@ app.get("/test-profile", (req, res) => {
   });
 });
 
-app.use("/api/profile", profileRoutes);
+
 
 app.get("/test-profile", (req, res) => {
   res.json({
