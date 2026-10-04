@@ -1,25 +1,28 @@
 // ======================================================
 // controllers/aiController.js
-// NEXUS AI - GPT-5.6 Sol
+// NEXUS AI - Gemini
 // ======================================================
 
-import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import Profile from "../models/Profile.js";
 
 // ======================================================
-// OPENAI CLIENT
+// GEMINI CLIENT
 // ======================================================
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const genAI = new GoogleGenerativeAI(
+  process.env.GEMINI_API_KEY
+);
 
 // ======================================================
 // MODEL
 // ======================================================
 
 const getAIModel = () => {
-  return process.env.OPENAI_MODEL || "gpt-5.6-sol";
+  return (
+    process.env.GEMINI_MODEL ||
+    "gemini-2.5-flash"
+  );
 };
 
 // ======================================================
@@ -57,10 +60,7 @@ const getCurrentDateDetails = (locale = "en-IN") => {
 // ======================================================
 
 const detectLanguage = (text = "") => {
-  const value = text.toLowerCase();
-
-  const marathiPattern =
-    /[\u0900-\u097F]/;
+  const marathiPattern = /[\u0900-\u097F]/;
 
   if (marathiPattern.test(text)) {
     const marathiWords = [
@@ -124,7 +124,7 @@ const detectLanguage = (text = "") => {
 };
 
 // ======================================================
-// SIMPLE DATE/TIME COMMANDS
+// TIME QUESTION
 // ======================================================
 
 const isTimeQuestion = (text = "") => {
@@ -144,6 +144,10 @@ const isTimeQuestion = (text = "") => {
     value.includes(item)
   );
 };
+
+// ======================================================
+// DATE QUESTION
+// ======================================================
 
 const isDateQuestion = (text = "") => {
   const value = text.toLowerCase();
@@ -167,7 +171,8 @@ const isDateQuestion = (text = "") => {
 
 const getUserProfile = async () => {
   try {
-    const profile = await Profile.findOne().lean();
+    const profile =
+      await Profile.findOne().lean();
 
     return (
       profile || {
@@ -190,19 +195,7 @@ const getUserProfile = async () => {
       error.message
     );
 
-    return {
-      name: "",
-      email: "",
-      mobile: "",
-      education: "",
-      college: "",
-      skills: "",
-      github: "",
-      linkedin: "",
-      portfolio: "",
-      location: "",
-      bio: "",
-    };
+    return {};
   }
 };
 
@@ -236,9 +229,10 @@ const buildSystemPrompt = ({
   dateDetails,
 }) => {
   return `
-You are Shifra, the advanced AI virtual assistant inside the NEXUS-AI application.
+You are Shifra, the advanced AI virtual assistant
+inside the NEXUS-AI application.
 
-Your personality:
+PERSONALITY:
 - Friendly
 - Intelligent
 - Helpful
@@ -248,20 +242,20 @@ Your personality:
 - Slightly warm
 - Never unnecessarily robotic
 
-IMPORTANT USER LANGUAGE:
-The detected user language is ${language}.
+LANGUAGE:
+Detected user language: ${language}
 
-If the user speaks Marathi:
-- Reply naturally in Marathi.
+If user speaks Marathi:
+Reply naturally in Marathi.
 
-If the user speaks Hindi:
-- Reply naturally in Hindi.
+If user speaks Hindi:
+Reply naturally in Hindi.
 
-If the user speaks English:
-- Reply naturally in English.
+If user speaks English:
+Reply naturally in English.
 
-If the user mixes Hindi/English or Marathi/English:
-- Reply naturally in the same mixed style.
+If user mixes Hindi/English or Marathi/English:
+Reply naturally in the same mixed style.
 
 CURRENT DATE:
 ${dateDetails.date}
@@ -274,28 +268,26 @@ ${JSON.stringify(profile, null, 2)}
 
 PROFILE RULES:
 - Use profile information when relevant.
-- If the user asks their name and profile contains a name, use it.
-- If profile information is empty, do NOT invent it.
+- If user asks their name and profile contains a name, use it.
+- If profile is empty, do not invent information.
 - Never invent personal information.
-- Do not expose private profile information unnecessarily.
+- Do not expose private information unnecessarily.
 
 IMPORTANT:
 You are Shifra.
 Do not say you are Gemini.
 Do not say you are OpenRouter.
 Do not say you are an API.
-Do not mention internal implementation unless the user asks.
-
-Answer the user's actual question directly.
+Do not mention internal implementation unless asked.
 
 For simple greetings:
 Keep the response short and friendly.
 
 For coding questions:
 Give practical and correct solutions.
-Prefer copy-paste-ready examples when appropriate.
+Prefer copy-paste-ready examples.
 
-For technical debugging:
+For debugging:
 Explain the error first and then give the fix.
 
 For casual conversation:
@@ -315,84 +307,45 @@ const formatHistory = (history = []) => {
   }
 
   return history
-    .filter((item) => {
-      return (
+    .filter(
+      (item) =>
         item &&
         typeof item.content === "string" &&
         item.content.trim()
-      );
-    })
-    .map((item) => {
-      let role = item.role;
+    )
+    .map((item) => ({
+      role:
+        item.role === "assistant"
+          ? "model"
+          : "user",
 
-      if (role !== "user" && role !== "assistant") {
-        role = "user";
-      }
-
-      return {
-        role,
-        content: item.content.trim(),
-      };
-    })
+      parts: [
+        {
+          text: item.content.trim(),
+        },
+      ],
+    }))
     .slice(-20);
-};
-
-// ======================================================
-// RESPONSE TEXT EXTRACTOR
-// ======================================================
-
-const extractResponseText = (response) => {
-  if (
-    response &&
-    typeof response.output_text === "string"
-  ) {
-    return response.output_text.trim();
-  }
-
-  try {
-    const output = response?.output || [];
-
-    for (const item of output) {
-      if (item.type !== "message") {
-        continue;
-      }
-
-      const content = item.content || [];
-
-      for (const part of content) {
-        if (
-          part.type === "output_text" &&
-          typeof part.text === "string"
-        ) {
-          return part.text.trim();
-        }
-      }
-    }
-  } catch (error) {
-    console.error(
-      "❌ RESPONSE TEXT EXTRACTION ERROR:",
-      error.message
-    );
-  }
-
-  return "";
 };
 
 // ======================================================
 // MAIN AI CHAT
 // ======================================================
 
-export const chatWithAI = async (req, res) => {
+export const chatWithAI = async (
+  req,
+  res
+) => {
   try {
-    // --------------------------------------------------
-    // INPUT
-    // --------------------------------------------------
-
     const {
       message,
       history = [],
       personalData = {},
     } = req.body;
+
+    // --------------------------------------------------
+    // INPUT
+    // --------------------------------------------------
 
     if (
       typeof message !== "string" ||
@@ -410,15 +363,15 @@ export const chatWithAI = async (req, res) => {
     // API KEY CHECK
     // --------------------------------------------------
 
-    if (!process.env.OPENAI_API_KEY) {
+    if (!process.env.GEMINI_API_KEY) {
       console.error(
-        "❌ OPENAI_API_KEY is missing."
+        "❌ GEMINI_API_KEY is missing."
       );
 
       return res.status(503).json({
         success: false,
         message:
-          "OpenAI API key is not configured on the server.",
+          "Gemini API key is not configured.",
       });
     }
 
@@ -426,7 +379,7 @@ export const chatWithAI = async (req, res) => {
     // MODEL
     // --------------------------------------------------
 
-    const model = getAIModel();
+    const modelName = getAIModel();
 
     // --------------------------------------------------
     // LANGUAGE
@@ -443,22 +396,14 @@ export const chatWithAI = async (req, res) => {
       getCurrentDateDetails(language);
 
     // --------------------------------------------------
-    // DATABASE PROFILE
+    // PROFILE
     // --------------------------------------------------
 
     const dbProfile =
       await getUserProfile();
 
-    // --------------------------------------------------
-    // FRONTEND PROFILE
-    // --------------------------------------------------
-
     const frontendProfile =
       cleanProfile(personalData);
-
-    // --------------------------------------------------
-    // MERGE PROFILE
-    // --------------------------------------------------
 
     const profile = {
       ...dbProfile,
@@ -469,7 +414,7 @@ export const chatWithAI = async (req, res) => {
     // SYSTEM PROMPT
     // --------------------------------------------------
 
-    const instructions =
+    const systemPrompt =
       buildSystemPrompt({
         profile,
         language,
@@ -477,23 +422,27 @@ export const chatWithAI = async (req, res) => {
       });
 
     // --------------------------------------------------
-    // DIRECT DATE/TIME RESPONSE
+    // DIRECT TIME
     // --------------------------------------------------
 
     if (isTimeQuestion(userMessage)) {
       return res.status(200).json({
         success: true,
         reply: `The current time is ${dateDetails.time}.`,
-        model,
+        model: modelName,
         language,
       });
     }
+
+    // --------------------------------------------------
+    // DIRECT DATE
+    // --------------------------------------------------
 
     if (isDateQuestion(userMessage)) {
       return res.status(200).json({
         success: true,
         reply: `Today is ${dateDetails.date}.`,
-        model,
+        model: modelName,
         language,
       });
     }
@@ -506,77 +455,96 @@ export const chatWithAI = async (req, res) => {
       formatHistory(history);
 
     // --------------------------------------------------
-    // OPENAI INPUT
+    // GEMINI MODEL
     // --------------------------------------------------
 
-    const input = [
-      ...formattedHistory,
-      {
-        role: "user",
-        content: userMessage,
-      },
-    ];
+    const model =
+      genAI.getGenerativeModel({
+        model: modelName,
+        systemInstruction: systemPrompt,
+      });
 
     // --------------------------------------------------
-    // DEBUG LOG
+    // DEBUG
     // --------------------------------------------------
 
     console.log("");
-    console.log("=================================");
-    console.log("🤖 OPENAI REQUEST");
-    console.log("=================================");
-    console.log("Model:", model);
+    console.log(
+      "================================="
+    );
+    console.log("🤖 GEMINI REQUEST");
+    console.log(
+      "================================="
+    );
+
+    console.log(
+      "Model:",
+      modelName
+    );
+
     console.log(
       "API KEY:",
-      process.env.OPENAI_API_KEY
+      process.env.GEMINI_API_KEY
         ? "AVAILABLE ✅"
         : "MISSING ❌"
     );
+
     console.log(
       "Language:",
       language
     );
+
     console.log(
       "History:",
       formattedHistory.length
     );
+
     console.log(
       "Message:",
       userMessage
     );
-    console.log("=================================");
+
+    console.log(
+      "================================="
+    );
 
     // --------------------------------------------------
-    // OPENAI RESPONSES API
+    // CHAT
     // --------------------------------------------------
 
-    const response =
-      await openai.responses.create({
-        model,
-
-        instructions,
-
-        input,
-
-        max_output_tokens: 1200,
+    const chat =
+      model.startChat({
+        history: formattedHistory,
+        generationConfig: {
+          maxOutputTokens: 1200,
+          temperature: 0.7,
+        },
       });
 
     // --------------------------------------------------
-    // EXTRACT REPLY
+    // GEMINI REQUEST
     // --------------------------------------------------
 
-    const reply =
-      extractResponseText(response);
-
-    if (!reply) {
-      console.error(
-        "❌ OpenAI returned empty response."
+    const result =
+      await chat.sendMessage(
+        userMessage
       );
 
+    // --------------------------------------------------
+    // RESPONSE
+    // --------------------------------------------------
+
+    const response =
+      result.response;
+
+    const reply =
+      response.text();
+
+    if (!reply) {
       return res.status(502).json({
         success: false,
         message:
-          "AI returned an empty response.",
+          "Gemini returned an empty response.",
       });
     }
 
@@ -585,7 +553,7 @@ export const chatWithAI = async (req, res) => {
     // --------------------------------------------------
 
     console.log(
-      "✅ OPENAI RESPONSE:",
+      "✅ GEMINI RESPONSE:",
       reply
     );
 
@@ -596,32 +564,22 @@ export const chatWithAI = async (req, res) => {
     return res.status(200).json({
       success: true,
       reply,
-      model,
+      model: modelName,
       language,
     });
   } catch (error) {
-    // --------------------------------------------------
-    // ERROR LOG
-    // --------------------------------------------------
-
     console.error("");
-    console.error("=================================");
-    console.error("❌ OPENAI ERROR");
-    console.error("=================================");
+    console.error(
+      "================================="
+    );
+    console.error("❌ GEMINI ERROR");
+    console.error(
+      "================================="
+    );
 
     console.error(
       "Status:",
       error?.status
-    );
-
-    console.error(
-      "Code:",
-      error?.code
-    );
-
-    console.error(
-      "Type:",
-      error?.type
     );
 
     console.error(
@@ -630,65 +588,54 @@ export const chatWithAI = async (req, res) => {
     );
 
     console.error(
-      "Request ID:",
-      error?.request_id
-    );
-
-    console.error(
-      "Full Error:",
-      error
-    );
-
-    console.error(
       "================================="
     );
 
-    // --------------------------------------------------
-    // ERROR MESSAGE
-    // --------------------------------------------------
-
     let message =
-      "AI service temporarily unavailable.";
+      "Gemini AI service temporarily unavailable.";
 
-    if (error?.status === 401) {
-      message =
-        "Invalid OpenAI API key.";
-    } else if (error?.status === 403) {
-      message =
-        "OpenAI API access is not available for this project.";
-    } else if (error?.status === 404) {
-      message =
-        "The configured OpenAI model was not found or is not available to this project.";
-    } else if (error?.status === 429) {
-      message =
-        "OpenAI rate limit or quota limit reached.";
-    } else if (error?.status === 500) {
-      message =
-        "OpenAI server error.";
-    } else if (error?.status === 502) {
-      message =
-        "OpenAI gateway error.";
-    } else if (error?.status === 503) {
-      message =
-        "OpenAI service is temporarily unavailable or experiencing high demand.";
-    } else if (
-      error?.message
+    const status =
+      error?.status || 503;
+
+    if (
+      status === 400
     ) {
-      message = error.message;
+      message =
+        "Invalid Gemini API request.";
+    } else if (
+      status === 401 ||
+      status === 403
+    ) {
+      message =
+        "Invalid or unauthorized Gemini API key.";
+    } else if (
+      status === 404
+    ) {
+      message =
+        "Gemini model was not found or is not available.";
+    } else if (
+      status === 429
+    ) {
+      message =
+        "Gemini rate limit or free quota reached.";
+    } else if (
+      status >= 500
+    ) {
+      message =
+        "Gemini server error. Please try again.";
     }
 
     return res.status(
-      error?.status >= 400 &&
-        error?.status < 600
-        ? error.status
+      status >= 400 &&
+        status < 600
+        ? status
         : 503
     ).json({
       success: false,
       message,
       error: {
-        status: error?.status || null,
+        status,
         code: error?.code || null,
-        type: error?.type || null,
       },
     });
   }
@@ -708,6 +655,10 @@ export const analyzeWithAI = async (
       question = "",
     } = req.body;
 
+    // --------------------------------------------------
+    // INPUT
+    // --------------------------------------------------
+
     if (
       typeof text !== "string" ||
       !text.trim()
@@ -719,39 +670,74 @@ export const analyzeWithAI = async (
       });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
+    // --------------------------------------------------
+    // API KEY
+    // --------------------------------------------------
+
+    if (!process.env.GEMINI_API_KEY) {
       return res.status(503).json({
         success: false,
         message:
-          "OpenAI API key is not configured.",
+          "Gemini API key is not configured.",
       });
     }
 
-    const model = getAIModel();
+    // --------------------------------------------------
+    // MODEL
+    // --------------------------------------------------
+
+    const modelName = getAIModel();
+
+    // --------------------------------------------------
+    // PROFILE
+    // --------------------------------------------------
 
     const profile =
       await getUserProfile();
 
+    // --------------------------------------------------
+    // DATE
+    // --------------------------------------------------
+
     const dateDetails =
       getCurrentDateDetails();
 
-    const instructions = `
-You are Shifra, an AI assistant inside NEXUS-AI.
+    // --------------------------------------------------
+    // MODEL
+    // --------------------------------------------------
+
+    const model =
+      genAI.getGenerativeModel({
+        model: modelName,
+        systemInstruction: `
+You are Shifra, an AI assistant
+inside NEXUS-AI.
 
 Analyze the provided document carefully.
 
-Give useful, structured information.
+Give useful and structured information.
 
-If the user asks a specific question, answer that question directly.
+If the user asks a specific question,
+answer that question directly.
 
-Do not invent information that is not present in the document.
+Do not invent information
+that is not present in the document.
 
-User profile:
-${JSON.stringify(profile, null, 2)}
+USER PROFILE:
+${JSON.stringify(
+  profile,
+  null,
+  2
+)}
 
-Current date:
+CURRENT DATE:
 ${dateDetails.date}
-`;
+`,
+      });
+
+    // --------------------------------------------------
+    // DOCUMENT
+    // --------------------------------------------------
 
     const documentText =
       text.slice(0, 30000);
@@ -763,55 +749,65 @@ ${documentText}
 
 USER QUESTION:
 
-${question || "Summarize and analyze this document."}
+${
+  question ||
+  "Summarize and analyze this document."
+}
 `;
 
     console.log(
-      "📄 ANALYZING FILE WITH:",
-      model
+      "📄 ANALYZING FILE WITH GEMINI:",
+      modelName
     );
 
-    const response =
-      await openai.responses.create({
-        model,
-        instructions,
-        input: userInput,
-        max_output_tokens: 1600,
-      });
+    // --------------------------------------------------
+    // GEMINI
+    // --------------------------------------------------
+
+    const result =
+      await model.generateContent(
+        userInput
+      );
 
     const reply =
-      extractResponseText(response);
+      result.response.text();
 
     if (!reply) {
       return res.status(502).json({
         success: false,
         message:
-          "AI returned an empty analysis.",
+          "Gemini returned an empty analysis.",
       });
     }
 
     return res.status(200).json({
       success: true,
       reply,
-      model,
+      model: modelName,
     });
   } catch (error) {
     console.error(
-      "❌ FILE AI ANALYSIS ERROR:",
+      "❌ FILE GEMINI ANALYSIS ERROR:",
       error
     );
 
-    return res.status(
-      error?.status || 503
-    ).json({
+    const status =
+      error?.status || 503;
+
+    let message =
+      "Gemini file analysis failed.";
+
+    if (status === 429) {
+      message =
+        "Gemini free quota or rate limit reached.";
+    }
+
+    return res.status(status).json({
       success: false,
-      message:
-        error?.message ||
-        "File analysis failed.",
+      message,
       error: {
-        status: error?.status || null,
+        status,
         code: error?.code || null,
-        type: error?.type || null,
       },
     });
   }
