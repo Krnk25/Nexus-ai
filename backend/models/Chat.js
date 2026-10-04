@@ -7,6 +7,7 @@ const messageSchema = new mongoose.Schema(
       enum: ["user", "assistant"],
       required: true,
     },
+
     content: {
       type: String,
       required: true,
@@ -21,6 +22,7 @@ const chatSchema = new mongoose.Schema(
       type: String,
       default: "New Chat",
     },
+
     messages: [messageSchema],
   },
   { timestamps: true }

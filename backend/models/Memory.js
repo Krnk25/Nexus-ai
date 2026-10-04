@@ -7,11 +7,13 @@ const memorySchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
+
     value: {
       type: String,
       required: true,
     },
   },
+
   { timestamps: true }
 );
 

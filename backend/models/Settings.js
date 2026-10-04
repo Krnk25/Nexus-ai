@@ -2,27 +2,79 @@ import mongoose from "mongoose";
 
 const settingsSchema = new mongoose.Schema(
   {
-    userId: { type: String, default: "default-user" },
+    userId: {
+      type: String,
+      default: "default-user",
+    },
 
-    theme: { type: String, default: "hacker" },
-    aiModel: { type: String, default: "openai/gpt-4o-mini" },
-    responseLength: { type: String, default: "medium" },
-    creativity: { type: Number, default: 50 },
+    theme: {
+      type: String,
+      default: "hacker",
+    },
 
-    voiceLang: { type: String, default: "en-IN" },
-    voiceSpeed: { type: Number, default: 1 },
-    autoSpeak: { type: Boolean, default: true },
+    aiModel: {
+      type: String,
+      default: "gpt-4o-mini",
+    },
 
-    saveChat: { type: Boolean, default: true },
-    autoMemory: { type: Boolean, default: true },
+    responseLength: {
+      type: String,
+      default: "medium",
+    },
 
-    atsEnabled: { type: Boolean, default: true },
-    pdfReader: { type: Boolean, default: true },
+    creativity: {
+      type: Number,
+      default: 50,
+    },
 
-    systemCommands: { type: Boolean, default: true },
-    websiteCommands: { type: Boolean, default: true },
+    voiceLang: {
+      type: String,
+      default: "en-IN",
+    },
+
+    voiceSpeed: {
+      type: Number,
+      default: 1,
+    },
+
+    autoSpeak: {
+      type: Boolean,
+      default: true,
+    },
+
+    saveChat: {
+      type: Boolean,
+      default: true,
+    },
+
+    autoMemory: {
+      type: Boolean,
+      default: true,
+    },
+
+    atsEnabled: {
+      type: Boolean,
+      default: true,
+    },
+
+    pdfReader: {
+      type: Boolean,
+      default: true,
+    },
+
+    systemCommands: {
+      type: Boolean,
+      default: true,
+    },
+
+    websiteCommands: {
+      type: Boolean,
+      default: true,
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
 export default mongoose.model("Settings", settingsSchema);

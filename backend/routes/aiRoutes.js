@@ -1,12 +1,12 @@
 import express from "express";
 import {
-    analyzeFileWithAI,
-    chatWithAI,
+  chatWithAI,
+  analyzeWithAI,
 } from "../controllers/aiController.js";
 
 const router = express.Router();
 
 router.post("/chat", chatWithAI);
-router.post("/file-analyze", analyzeFileWithAI);
+router.post("/analyze", analyzeWithAI);
 
 export default router;

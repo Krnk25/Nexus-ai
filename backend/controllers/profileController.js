@@ -1,6 +1,24 @@
 import Profile from "../models/Profile.js";
 
 // ==========================================
+// DEFAULT PROFILE
+// ==========================================
+
+const emptyProfile = {
+  name: "",
+  email: "",
+  mobile: "",
+  education: "",
+  college: "",
+  skills: "",
+  github: "",
+  linkedin: "",
+  portfolio: "",
+  location: "",
+  bio: "",
+};
+
+// ==========================================
 // GET PROFILE
 // ==========================================
 
@@ -8,35 +26,31 @@ export const getProfile = async (req, res) => {
   try {
     let profile = await Profile.findOne().lean();
 
-    // Agar profile database me nahi hai
+    // ----------------------------------------
+    // CREATE EMPTY PROFILE IF NOT EXISTS
+    // ----------------------------------------
+
     if (!profile) {
-      profile = await Profile.create({
-        name: "",
-        email: "",
-        mobile: "",
-        education: "",
-        college: "",
-        skills: "",
-        github: "",
-        linkedin: "",
-        portfolio: "",
-        location: "",
-        bio: "",
-      });
+      profile = await Profile.create(
+        emptyProfile
+      );
 
       profile = profile.toObject();
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       profile,
     });
   } catch (error) {
-    console.error("GET PROFILE ERROR:", error);
+    console.error(
+      "❌ GET PROFILE ERROR:",
+      error
+    );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Profile fetch failed",
+      message: "Profile fetch failed.",
       error: error.message,
     });
   }
@@ -62,53 +76,116 @@ export const saveProfile = async (req, res) => {
       bio,
     } = req.body;
 
+    // ----------------------------------------
+    // CLEAN DATA
+    // ----------------------------------------
+
+    const profileData = {
+      name:
+        typeof name === "string"
+          ? name.trim()
+          : "",
+
+      email:
+        typeof email === "string"
+          ? email.trim()
+          : "",
+
+      mobile:
+        typeof mobile === "string"
+          ? mobile.trim()
+          : "",
+
+      education:
+        typeof education === "string"
+          ? education.trim()
+          : "",
+
+      college:
+        typeof college === "string"
+          ? college.trim()
+          : "",
+
+      skills:
+        typeof skills === "string"
+          ? skills.trim()
+          : "",
+
+      github:
+        typeof github === "string"
+          ? github.trim()
+          : "",
+
+      linkedin:
+        typeof linkedin === "string"
+          ? linkedin.trim()
+          : "",
+
+      portfolio:
+        typeof portfolio === "string"
+          ? portfolio.trim()
+          : "",
+
+      location:
+        typeof location === "string"
+          ? location.trim()
+          : "",
+
+      bio:
+        typeof bio === "string"
+          ? bio.trim()
+          : "",
+    };
+
+    // ----------------------------------------
+    // FIND EXISTING PROFILE
+    // ----------------------------------------
+
     let profile = await Profile.findOne();
 
-    // Existing profile update
+    // ----------------------------------------
+    // UPDATE EXISTING PROFILE
+    // ----------------------------------------
+
     if (profile) {
-      profile.name = name || "";
-      profile.email = email || "";
-      profile.mobile = mobile || "";
-      profile.education = education || "";
-      profile.college = college || "";
-      profile.skills = skills || "";
-      profile.github = github || "";
-      profile.linkedin = linkedin || "";
-      profile.portfolio = portfolio || "";
-      profile.location = location || "";
-      profile.bio = bio || "";
+      Object.assign(
+        profile,
+        profileData
+      );
 
       await profile.save();
     }
 
-    // New profile create
+    // ----------------------------------------
+    // CREATE NEW PROFILE
+    // ----------------------------------------
+
     else {
-      profile = await Profile.create({
-        name: name || "",
-        email: email || "",
-        mobile: mobile || "",
-        education: education || "",
-        college: college || "",
-        skills: skills || "",
-        github: github || "",
-        linkedin: linkedin || "",
-        portfolio: portfolio || "",
-        location: location || "",
-        bio: bio || "",
-      });
+      profile =
+        await Profile.create(
+          profileData
+        );
     }
 
-    res.status(200).json({
+    // ----------------------------------------
+    // RESPONSE
+    // ----------------------------------------
+
+    return res.status(200).json({
       success: true,
-      message: "Profile saved successfully",
+      message:
+        "Profile saved successfully.",
       profile,
     });
   } catch (error) {
-    console.error("SAVE PROFILE ERROR:", error);
+    console.error(
+      "❌ SAVE PROFILE ERROR:",
+      error
+    );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Profile save failed",
+      message: "Profile save failed.",
       error: error.message,
     });
   }
@@ -118,20 +195,28 @@ export const saveProfile = async (req, res) => {
 // DELETE / RESET PROFILE
 // ==========================================
 
-export const deleteProfile = async (req, res) => {
+export const deleteProfile = async (
+  req,
+  res
+) => {
   try {
     await Profile.deleteMany({});
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: "Profile deleted successfully",
+      message:
+        "Profile deleted successfully.",
     });
   } catch (error) {
-    console.error("DELETE PROFILE ERROR:", error);
+    console.error(
+      "❌ DELETE PROFILE ERROR:",
+      error
+    );
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: "Profile delete failed",
+      message:
+        "Profile delete failed.",
       error: error.message,
     });
   }
