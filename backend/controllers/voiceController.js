@@ -1,15 +1,20 @@
 import fs from "fs";
-import OpenAI from "openai";
-
 import "../config/env.js";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // ======================================================
-// OPENAI CLIENT
+// GEMINI CLIENT
 // ======================================================
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const genAI = new GoogleGenerativeAI(
+  process.env.GEMINI_API_KEY
+);
+
+const getAIModel = () => {
+  return genAI.getGenerativeModel({
+    model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+  });
+};
 
 // ======================================================
 // VOICE TRANSCRIPTION
@@ -20,13 +25,13 @@ export const transcribeVoice = async (req, res) => {
 
   try {
     // --------------------------------------------------
-    // CHECK OPENAI API KEY
+    // CHECK GEMINI API KEY
     // --------------------------------------------------
 
-    if (!process.env.OPENAI_API_KEY) {
+    if (!process.env.GEMINI_API_KEY) {
       return res.status(500).json({
         success: false,
-        message: "OPENAI_API_KEY missing hai.",
+        message: "GEMINI_API_KEY missing hai.",
       });
     }
 
@@ -51,20 +56,50 @@ export const transcribeVoice = async (req, res) => {
     console.log("Size:", req.file.size);
 
     // --------------------------------------------------
-    // SEND AUDIO TO OPENAI
+    // READ AUDIO FILE
     // --------------------------------------------------
 
-    const transcription =
-      await openai.audio.transcriptions.create({
-        file: fs.createReadStream(filePath),
-        model: "gpt-4o-mini-transcribe",
-      });
+    const audioData = fs
+      .readFileSync(filePath)
+      .toString("base64");
 
     // --------------------------------------------------
-    // GET TRANSCRIBED TEXT
+    // GEMINI MODEL
     // --------------------------------------------------
 
-    const text = transcription?.text?.trim();
+    const model = getAIModel();
+
+    // --------------------------------------------------
+    // SEND AUDIO TO GEMINI
+    // --------------------------------------------------
+
+    const result = await model.generateContent([
+      {
+        inlineData: {
+          mimeType: req.file.mimetype || "audio/webm",
+          data: audioData,
+        },
+      },
+      {
+        text: `
+Transcribe this audio exactly.
+
+Rules:
+1. Return only the spoken text.
+2. Do not explain anything.
+3. Do not add quotation marks.
+4. Support Hindi, English and Marathi.
+5. Preserve the spoken language.
+        `,
+      },
+    ]);
+
+    // --------------------------------------------------
+    // GET TEXT
+    // --------------------------------------------------
+
+    const text =
+      result?.response?.text()?.trim() || "";
 
     if (!text) {
       return res.status(422).json({
@@ -87,13 +122,7 @@ export const transcribeVoice = async (req, res) => {
     console.error("❌ VOICE TRANSCRIBE ERROR:");
     console.error(error);
 
-    const statusCode =
-      Number(error?.status) >= 400 &&
-      Number(error?.status) < 600
-        ? Number(error.status)
-        : 500;
-
-    return res.status(statusCode).json({
+    return res.status(500).json({
       success: false,
       message:
         error?.message ||
@@ -101,7 +130,7 @@ export const transcribeVoice = async (req, res) => {
     });
   } finally {
     // --------------------------------------------------
-    // DELETE TEMP AUDIO FILE
+    // DELETE TEMP AUDIO
     // --------------------------------------------------
 
     if (filePath && fs.existsSync(filePath)) {
@@ -110,7 +139,7 @@ export const transcribeVoice = async (req, res) => {
         console.log("🗑️ Temporary audio file deleted.");
       } catch (deleteError) {
         console.error(
-          "⚠️ Audio file delete failed:",
+          "⚠️ Audio delete failed:",
           deleteError.message
         );
       }
