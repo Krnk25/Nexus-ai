@@ -1,223 +1,184 @@
-import Profile from "../models/Profile.js";
 
-// ==========================================
-// DEFAULT PROFILE
-// ==========================================
+import Memory from "../models/Memory.js";
 
-const emptyProfile = {
-  name: "",
-  email: "",
-  mobile: "",
-  education: "",
-  college: "",
-  skills: "",
-  github: "",
-  linkedin: "",
-  portfolio: "",
-  location: "",
-  bio: "",
+const profileFields = {
+  name: ["name", "my name", "mera naam", "mera name"],
+  email: ["email", "email address"],
+  mobile: ["mobile", "phone", "phone number", "mobile number"],
+  education: ["education", "qualification"],
+  college: ["college", "college name"],
+  skills: ["skills", "my skills"],
+  github: ["github", "github link"],
+  linkedin: ["linkedin", "linkedin link"],
+  portfolio: ["portfolio", "portfolio link"],
+  location: ["location", "city", "address"],
+  village: ["village", "my village", "gaon", "mera gaon"],
+  bio: ["bio", "about me", "about"],
+  fatherName: ["fathername", "father name", "father", "papa", "papa name"],
+  motherName: ["mothername", "mother name", "mother", "maa"],
+  brotherName: ["brothername", "brother name", "brother", "bhai"],
+  sister: ["sister", "sistername", "sister name", "behen"],
 };
 
-// ==========================================
-// GET PROFILE
-// ==========================================
+const normalizeKey = (key) =>
+  String(key).trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 
+const normalizeValue = (value) => {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) return value.join(", ");
+  return "";
+};
+
+// Read profile data from the existing memories collection
 export const getProfile = async (req, res) => {
   try {
-    let profile = await Profile.findOne().lean();
+    const memories = await Memory.find()
+      .sort({ updatedAt: -1, createdAt: -1 })
+      .lean();
 
-    // ----------------------------------------
-    // CREATE EMPTY PROFILE IF NOT EXISTS
-    // ----------------------------------------
+    const profile = {};
 
-    if (!profile) {
-      profile = await Profile.create(
-        emptyProfile
-      );
+    for (const field of Object.keys(profileFields)) {
+      profile[field] = "";
+    }
 
-      profile = profile.toObject();
+    // Newest value wins when multiple memories use equivalent keys.
+    const memoryMap = new Map();
+
+    for (const memory of memories) {
+      const key = normalizeKey(memory.key);
+
+      if (!memoryMap.has(key)) {
+        memoryMap.set(key, memory.value);
+      }
+    }
+
+    for (const [field, aliases] of Object.entries(profileFields)) {
+      for (const alias of aliases) {
+        const key = normalizeKey(alias);
+
+        if (memoryMap.has(key)) {
+          const value = memoryMap.get(key);
+
+          if (value !== undefined && value !== null && String(value).trim()) {
+            profile[field] = String(value);
+            break;
+          }
+        }
+      }
     }
 
     return res.status(200).json({
       success: true,
       profile,
+      source: "memories",
     });
   } catch (error) {
-    console.error(
-      "❌ GET PROFILE ERROR:",
-      error
-    );
+    console.error("GET PROFILE FROM MEMORY ERROR:", error);
 
     return res.status(500).json({
       success: false,
-      message: "Profile fetch failed.",
-      error: error.message,
+      message: "Failed to fetch profile from memories.",
     });
   }
 };
 
-// ==========================================
-// SAVE / UPDATE PROFILE
-// ==========================================
-
+// Save or update profile details in the memories collection
 export const saveProfile = async (req, res) => {
   try {
-    const {
-      name,
-      email,
-      mobile,
-      education,
-      college,
-      skills,
-      github,
-      linkedin,
-      portfolio,
-      location,
-      bio,
-    } = req.body;
+    const data = req.body;
 
-    // ----------------------------------------
-    // CLEAN DATA
-    // ----------------------------------------
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide profile data as a JSON object.",
+      });
+    }
 
-    const profileData = {
-      name:
-        typeof name === "string"
-          ? name.trim()
-          : "",
+    const fieldsToSave = Object.keys(profileFields).filter(
+      (field) => data[field] !== undefined && data[field] !== null
+    );
 
-      email:
-        typeof email === "string"
-          ? email.trim()
-          : "",
+    if (fieldsToSave.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No valid profile fields received.",
+      });
+    }
 
-      mobile:
-        typeof mobile === "string"
-          ? mobile.trim()
-          : "",
+    for (const field of fieldsToSave) {
+      const value = normalizeValue(data[field]);
 
-      education:
-        typeof education === "string"
-          ? education.trim()
-          : "",
+      if (!value) continue;
 
-      college:
-        typeof college === "string"
-          ? college.trim()
-          : "",
-
-      skills:
-        typeof skills === "string"
-          ? skills.trim()
-          : "",
-
-      github:
-        typeof github === "string"
-          ? github.trim()
-          : "",
-
-      linkedin:
-        typeof linkedin === "string"
-          ? linkedin.trim()
-          : "",
-
-      portfolio:
-        typeof portfolio === "string"
-          ? portfolio.trim()
-          : "",
-
-      location:
-        typeof location === "string"
-          ? location.trim()
-          : "",
-
-      bio:
-        typeof bio === "string"
-          ? bio.trim()
-          : "",
-    };
-
-    // ----------------------------------------
-    // FIND EXISTING PROFILE
-    // ----------------------------------------
-
-    let profile = await Profile.findOne();
-
-    // ----------------------------------------
-    // UPDATE EXISTING PROFILE
-    // ----------------------------------------
-
-    if (profile) {
-      Object.assign(
-        profile,
-        profileData
+      await Memory.findOneAndUpdate(
+        { key: normalizeKey(field) },
+        { $set: { value } },
+        {
+          upsert: true,
+          new: true,
+          setDefaultsOnInsert: true,
+          runValidators: true,
+        }
       );
-
-      await profile.save();
     }
 
-    // ----------------------------------------
-    // CREATE NEW PROFILE
-    // ----------------------------------------
+    // Return the saved profile read back from MongoDB.
+    const memories = await Memory.find()
+      .sort({ updatedAt: -1, createdAt: -1 })
+      .lean();
 
-    else {
-      profile =
-        await Profile.create(
-          profileData
-        );
+    const profile = {};
+
+    for (const field of Object.keys(profileFields)) {
+      profile[field] = "";
     }
 
-    // ----------------------------------------
-    // RESPONSE
-    // ----------------------------------------
+    const memoryMap = new Map();
+
+    for (const memory of memories) {
+      const key = normalizeKey(memory.key);
+
+      if (!memoryMap.has(key)) {
+        memoryMap.set(key, memory.value);
+      }
+    }
+
+    for (const [field, aliases] of Object.entries(profileFields)) {
+      for (const alias of aliases) {
+        const key = normalizeKey(alias);
+
+        if (memoryMap.has(key)) {
+          const value = memoryMap.get(key);
+
+          if (value !== undefined && value !== null && String(value).trim()) {
+            profile[field] = String(value);
+            break;
+          }
+        }
+      }
+    }
 
     return res.status(200).json({
       success: true,
-      message:
-        "Profile saved successfully.",
+      message: "Profile saved successfully in memories.",
       profile,
+      source: "memories",
     });
   } catch (error) {
-    console.error(
-      "❌ SAVE PROFILE ERROR:",
-      error
-    );
+    console.error("SAVE PROFILE TO MEMORY ERROR:", error);
 
     return res.status(500).json({
       success: false,
-      message: "Profile save failed.",
-      error: error.message,
+      message: error.message || "Failed to save profile in memories.",
     });
   }
 };
 
-// ==========================================
-// DELETE / RESET PROFILE
-// ==========================================
-
-export const deleteProfile = async (
-  req,
-  res
-) => {
-  try {
-    await Profile.deleteMany({});
-
-    return res.status(200).json({
-      success: true,
-      message:
-        "Profile deleted successfully.",
-    });
-  } catch (error) {
-    console.error(
-      "❌ DELETE PROFILE ERROR:",
-      error
-    );
-
-    return res.status(500).json({
-      success: false,
-      message:
-        "Profile delete failed.",
-      error: error.message,
-    });
-  }
+// PUT: Update profile
+export const updateProfile = async (req, res) => {
+  return saveProfile(req, res);
 };

@@ -1,3 +1,4 @@
+
 import Settings from "../models/Settings.js";
 
 const DEFAULT_USER_ID = "default-user";
@@ -11,7 +12,6 @@ export const getSettings = async (req, res) => {
       userId: DEFAULT_USER_ID,
     });
 
-    // Agar settings nahi hai to default settings create karo
     if (!settings) {
       settings = await Settings.create({
         userId: DEFAULT_USER_ID,
@@ -23,7 +23,7 @@ export const getSettings = async (req, res) => {
       settings,
     });
   } catch (error) {
-    console.error("❌ GET SETTINGS ERROR:", error);
+    console.error("GET SETTINGS ERROR:", error);
 
     return res.status(500).json({
       success: false,
@@ -38,26 +38,21 @@ export const getSettings = async (req, res) => {
 // ==========================================
 export const saveSettings = async (req, res) => {
   try {
-    if (!req.body || typeof req.body !== "object") {
+    if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) {
       return res.status(400).json({
         success: false,
-        message: "Settings data is required.",
+        message: "Valid settings data is required.",
       });
     }
 
-    // userId frontend se change nahi hone dena
     const settingsData = {
       ...req.body,
       userId: DEFAULT_USER_ID,
     };
 
     const settings = await Settings.findOneAndUpdate(
-      {
-        userId: DEFAULT_USER_ID,
-      },
-      {
-        $set: settingsData,
-      },
+      { userId: DEFAULT_USER_ID },
+      { $set: settingsData },
       {
         new: true,
         upsert: true,
@@ -72,7 +67,7 @@ export const saveSettings = async (req, res) => {
       settings,
     });
   } catch (error) {
-    console.error("❌ SAVE SETTINGS ERROR:", error);
+    console.error("SAVE SETTINGS ERROR:", error);
 
     return res.status(500).json({
       success: false,
@@ -88,14 +83,8 @@ export const saveSettings = async (req, res) => {
 export const resetSettings = async (req, res) => {
   try {
     const settings = await Settings.findOneAndUpdate(
-      {
-        userId: DEFAULT_USER_ID,
-      },
-      {
-        $set: {
-          userId: DEFAULT_USER_ID,
-        },
-      },
+      { userId: DEFAULT_USER_ID },
+      { $set: { userId: DEFAULT_USER_ID } },
       {
         new: true,
         upsert: true,
@@ -110,7 +99,7 @@ export const resetSettings = async (req, res) => {
       settings,
     });
   } catch (error) {
-    console.error("❌ RESET SETTINGS ERROR:", error);
+    console.error("RESET SETTINGS ERROR:", error);
 
     return res.status(500).json({
       success: false,

@@ -1,20 +1,15 @@
-import express from "express";
 
+import express from "express";
 import {
   getProfile,
   saveProfile,
-  deleteProfile,
+  updateProfile,
 } from "../controllers/profileController.js";
 
 const router = express.Router();
 
-// Get profile
 router.get("/", getProfile);
-
-// Save / update profile
 router.post("/", saveProfile);
-
-// Delete profile
-router.delete("/", deleteProfile);
+router.put("/", updateProfile);
 
 export default router;
