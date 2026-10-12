@@ -1,95 +1,149 @@
 
-import API from "../../services/api";
+import { useState } from "react";
+import SystemAPI from "../../services/systemApi";
 import "./SystemControl.css";
-import { useState } from "react"; ''
 
-function SystemControl() {
-  const appCommands = [
-    "open notepad",
-    "open calculator",
-    "open cmd",
-    "open file explorer",
-    "open chrome",
-    "open vs code",
-    "open task manager",
-    "open control panel",
-    "open settings",
-    "open paint",
-  ];
-
- const websiteCommands = [
-  "open google",
-  "open youtube",
-  "open github",
-  "open gmail",
-  "open linkedin",
-  "open linkdin",
-  "open instagram",
-  "open insta",
-  "open snapchat",
-  "open snap",
-  "open facebook",
-  "open whatsapp",
-  "open telegram",
-  "open twitter",
+const commandGroups = [
+  {
+    title: "COMPUTER APPS",
+    commands: [
+      "open notepad",
+      "open calculator",
+      "open cmd",
+      "open file explorer",
+      "open chrome",
+      "open vs code",
+      "open task manager",
+      "open control panel",
+      "open settings",
+      "open paint",
+    ],
+  },
+  {
+    title: "WEBSITES",
+    commands: [
+      "open google",
+      "open youtube",
+      "open github",
+      "open gmail",
+      "open chatgpt",
+      "open linkedin",
+      "open instagram",
+      "open snapchat",
+      "open facebook",
+      "open whatsapp",
+      "open telegram",
+      "open twitter",
+    ],
+  },
+  {
+    title: "POWER COMMANDS",
+    commands: [
+      "lock screen",
+      "restart computer",
+      "shutdown computer",
+    ],
+  },
 ];
 
-  const powerCommands = [
-    "lock screen",
-    "restart computer",
-    "shutdown computer",
-  ];
+function SystemControl() {
+  const [result, setResult] = useState("");
+  const [loadingCommand, setLoadingCommand] = useState("");
 
-  
-const [result, setResult] = useState("");
-const runCommand = async (command) => {
-  const dangerous =
-    command.includes("shutdown") || command.includes("restart");
+  const runCommand = async (command) => {
+    if (loadingCommand) return;
 
-  if (dangerous) {
-    const ok = window.confirm(`Are you sure you want to ${command}?`);
-    if (!ok) return;
-  }
+    const normalized = command.toLowerCase();
 
-  try {
-    setResult(`Running: ${command}`);
+    const isDangerous =
+      normalized.includes("shutdown") ||
+      normalized.includes("restart");
 
-    const res = await API.post("/system/run", { command });
+    let confirm = "";
 
-    setResult(res.data.message || "Command executed");
-  } catch (error) {
-    setResult(error.response?.data?.message || "System command failed");
-  }
-};
+    if (isDangerous) {
+      const approved = window.confirm(
+        `Are you sure you want to ${command}?\n\nSave your work before continuing.`
+      );
 
-  const renderButtons = (title, commands) => (
-    <div className="system-section">
-      <h3>{title}</h3>
+      if (!approved) return;
 
-      <div className="system-grid">
-        {commands.map((cmd) => (
-          <button key={cmd} onClick={() => runCommand(cmd)}>
-            {cmd.replace("open ", "").toUpperCase()}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
+      confirm = "yes";
+    }
+
+    try {
+      setLoadingCommand(command);
+      setResult(`Running: ${command}`);
+
+      const response = await SystemAPI.post("/system/run", {
+        command,
+        confirm,
+      });
+
+      setResult(
+        response.data?.message || `Command sent: ${command}`
+      );
+    } catch (error) {
+      console.error("System command error:", error);
+
+      if (!error.response) {
+        setResult(
+          "Local Windows backend is not reachable. Start your local backend on port 5000 and try again."
+        );
+      } else {
+        setResult(
+          error.response.data?.message ||
+            `Command failed. HTTP ${error.response.status}`
+        );
+      }
+    } finally {
+      setLoadingCommand("");
+    }
+  };
 
   return (
-    <div className="system-control">
+    <main className="system-control">
       <h2>SYSTEM CONTROL</h2>
-      <p>Open apps, websites, and system tools from NEXUS AI</p>
-      {result && (
-  <div className="system-result">
-    {result}
-  </div>
-)}
 
-      {renderButtons("COMPUTER APPS", appCommands)}
-      {renderButtons("WEBSITES", websiteCommands)}
-      {renderButtons("POWER COMMANDS", powerCommands)}
-    </div>
+      <p>Control your Windows apps and websites through NEXUS AI.</p>
+
+      {result && (
+        <div
+          className="system-result"
+          role="status"
+          aria-live="polite"
+        >
+          {result}
+        </div>
+      )}
+
+      {commandGroups.map((group) => (
+        <section className="system-section" key={group.title}>
+          <h3>{group.title}</h3>
+
+          <div className="system-grid">
+            {group.commands.map((command) => {
+              const label = command
+                .replace(/^open\s+/i, "")
+                .toUpperCase();
+
+              return (
+                <button
+                  type="button"
+                  key={command}
+                  disabled={Boolean(loadingCommand)}
+                  onClick={() => runCommand(command)}
+                >
+                  {loadingCommand === command
+                    ? "RUNNING..."
+                    : label}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ))}
+    </main>
   );
 }
 

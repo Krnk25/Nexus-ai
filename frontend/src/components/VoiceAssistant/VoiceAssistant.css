@@ -2,14 +2,24 @@
   width: min(900px, 95%);
   margin: 30px auto;
   padding: 30px;
+  height: 80vh;
   border-radius: 24px;
+
   background: rgba(3, 12, 10, 0.92);
   border: 1px solid rgba(0, 255, 170, 0.25);
+
   box-shadow: 0 0 35px rgba(0, 255, 170, 0.18);
+
   color: #eafff8;
   text-align: center;
   font-family: Arial, sans-serif;
+
+  box-sizing: border-box;
 }
+
+/* =========================
+   TITLE
+========================= */
 
 .voice-assistant h2 {
   margin-bottom: 20px;
@@ -18,23 +28,50 @@
   text-shadow: 0 0 20px rgba(0, 255, 170, 0.7);
 }
 
+/* =========================
+   VOICE ORB
+========================= */
+
 .voice-orb {
-  width: 130px;
-  height: 130px;
+  width: 60vh;
+  height: 60vh;
+
   margin: 20px auto;
-  border-radius: 50%;
+
   display: grid;
   place-items: center;
-  font-size: 48px;
+
+  overflow: hidden;
+
   background: radial-gradient(circle, #053d32, #020b09);
+
   border: 2px solid rgba(0, 255, 170, 0.45);
+
   box-shadow: 0 0 25px rgba(0, 255, 170, 0.25);
+
   transition: 0.3s ease;
 }
 
+/* =========================
+   ASSISTANT IMAGE
+========================= */
+
+.voice-orb .assistant-image {
+  width: 100%;
+  height: 100%;
+
+  display: block;
+}
+
+/* =========================
+   LISTENING ANIMATION
+========================= */
+
 .voice-orb.active {
   transform: scale(1.06);
+
   animation: pulseMic 1s infinite;
+
   box-shadow: 0 0 45px rgba(0, 255, 170, 0.75);
 }
 
@@ -52,17 +89,31 @@
   }
 }
 
+/* =========================
+   STATUS
+========================= */
+
 .voice-status {
   min-height: 24px;
+
   margin: 15px 0;
+
   font-size: 16px;
+
   color: #b9fff0;
 }
 
+/* =========================
+   BUTTONS
+========================= */
+
 .voice-buttons {
   display: flex;
+
   justify-content: center;
+
   gap: 15px;
+
   margin: 22px 0;
 }
 
@@ -74,7 +125,7 @@
   cursor: pointer;
   font-size: 15px;
   font-weight: 700;
-  color: #001a13;
+  color: #000000;
   background: linear-gradient(135deg, #00ffaa, #00c3ff);
   box-shadow: 0 0 18px rgba(0, 255, 170, 0.35);
   transition: 0.25s ease;
@@ -82,46 +133,128 @@
 
 .voice-buttons button:hover {
   transform: translateY(-2px);
+  color: #000000;
+
   box-shadow: 0 0 28px rgba(0, 255, 170, 0.6);
 }
 
 .voice-buttons button:disabled {
   opacity: 0.65;
+
   cursor: not-allowed;
+
   transform: none;
+  color: #000000;
 }
+
+.voice-buttons button,
+.voice-buttons button:hover,
+.voice-buttons button:focus,
+.voice-buttons button:active,
+.voice-buttons button:disabled {
+  color: #000000 !important;
+  -webkit-text-fill-color: #000000 !important;
+}
+/* =========================
+   USER / AI BOX
+========================= */
 
 .voice-box {
   margin-top: 18px;
+
   padding: 18px;
+
   text-align: left;
+
   border-radius: 18px;
+
   background: rgba(0, 255, 170, 0.06);
+
   border: 1px solid rgba(0, 255, 170, 0.18);
 }
 
 .voice-box h4 {
   margin: 0 0 8px;
+
   color: #00ffaa;
 }
 
 .voice-box p {
   margin: 0;
+
   line-height: 1.6;
+
   color: #eafff8;
+
   word-break: break-word;
 }
 
+/* =========================
+   YOUR EXISTING CLASSES
+========================= */
+
+.voice-text,
+.voice-reply {
+  margin-top: 18px;
+
+  padding: 18px;
+
+  text-align: left;
+
+  border-radius: 18px;
+
+  background: rgba(0, 255, 170, 0.06);
+
+  border: 1px solid rgba(0, 255, 170, 0.18);
+}
+
+.voice-text strong {
+  color: #00ffaa;
+}
+
+.voice-reply strong {
+  color: #00c3ff;
+}
+
+.voice-text p,
+.voice-reply p {
+  margin: 8px 0 0;
+
+  line-height: 1.6;
+
+  color: #eafff8;
+
+  word-break: break-word;
+}
+
+/* =========================
+   MOBILE
+========================= */
+
 @media (max-width: 600px) {
   .voice-assistant {
+    width: 94%;
+
     padding: 20px;
+  }
+
+  .voice-assistant h2 {
+    font-size: 24px;
+  }
+
+  .voice-orb {
+    width: 120px;
+    height: 120px;
   }
 
   .voice-buttons {
     flex-direction: column;
+
+    align-items: center;
   }
 
   .voice-buttons button {
     width: 100%;
+    max-width: 300px;
   }
 }

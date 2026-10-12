@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Neon Heart Animation</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #001207;
+            color: white;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        .container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            height: 100dvh;
+            overflow: hidden;
+            background:
+                radial-gradient(
+                    ellipse at center,
+                    #07351a 0%,
+                    #001b0b 50%,
+                    #000804 100%
+                );
+        }
+
+        canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .heading {
+            position: absolute;
+            top: 35px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            font-size: clamp(24px, 5vw, 45px);
+            font-weight: bold;
+            color: #dfff83;
+            text-shadow:
+                0 0 8px #73ff00,
+                0 0 20px #25ff00,
+                0 0 40px #00ff55;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .subtitle {
+            position: absolute;
+            top: 92px;
+            width: 100%;
+            text-align: center;
+            font-size: 12px;
+            letter-spacing: 5px;
+            color: #8affad;
+            opacity: 0.8;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 12px;
+            width: max-content;
+            max-width: calc(100% - 20px);
+            border: 1px solid rgba(82, 255, 144, 0.25);
+            border-radius: 18px;
+            background: rgba(0, 20, 10, 0.8);
+            backdrop-filter: blur(15px);
+            box-shadow: 0 0 30px rgba(0, 255, 90, 0.12);
+            z-index: 5;
+        }
+
+        .controls button {
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            outline: none;
+            padding: 10px 15px;
+            border-radius: 30px;
+            color: #d9ffe3;
+            background: rgba(255, 255, 255, 0.06);
+            font-size: 12px;
+            cursor: pointer;
+            transition: 0.3s;
+            white-space: nowrap;
+        }
+
+        .controls button:hover,
+        .controls button.active {
+            color: #001b08;
+            background: #6dff9c;
+            box-shadow: 0 0 18px rgba(0, 255, 100, 0.6);
+        }
+
+        .toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #c9ffda;
+            font-size: 12px;
+            white-space: nowrap;
+            padding: 0 5px;
+        }
+
+        .switch {
+            width: 40px;
+            height: 22px;
+            border-radius: 20px;
+            border: none;
+            background: #38483d;
+            padding: 3px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .switch::after {
+            content: "";
+            display: block;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: white;
+            transition: 0.3s;
+        }
+
+        .switch.on {
+            background: #27e875;
+        }
+
+        .switch.on::after {
+            transform: translateX(18px);
+        }
+
+        .hint {
+            position: absolute;
+            bottom: 100px;
+            width: 100%;
+            text-align: center;
+            font-size: 11px;
+            color: #8effb0;
+            opacity: 0.55;
+            letter-spacing: 2px;
+            pointer-events: none;
+        }
+
+        @media (max-width: 480px) {
+            .heading {
+                top: 35px;
+            }
+
+            .subtitle {
+                top: 82px;
+                font-size: 9px;
+                letter-spacing: 3px;
+            }
+
+            .controls {
+                bottom: 18px;
+                gap: 5px;
+                padding: 8px;
+                border-radius: 15px;
+            }
+
+            .controls button {
+                padding: 9px 10px;
+                font-size: 10px;
+            }
+
+            .toggle {
+                gap: 5px;
+                font-size: 10px;
+                padding: 0 2px;
+            }
+
+            .switch {
+                width: 34px;
+                height: 20px;
+            }
+
+            .switch::after {
+                width: 14px;
+                height: 14px;
+            }
+
+            .switch.on::after {
+                transform: translateX(14px);
+            }
+
+            .hint {
+                bottom: 85px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+
+        <canvas id="canvas"></canvas>
+
+        <h1 class="heading">Neon Heart</h1>
+
+        <div class="subtitle">
+            PARTICLE LOVE EXPERIENCE
+        </div>
+
+        <div class="hint">
+            A HEART MADE OF LIGHT
+        </div>
+
+        <div class="controls">
+
+            <button data-mode="molten">
+                Molten
+            </button>
+
+            <button data-mode="cosmic">
+                Cosmic
+            </button>
+
+            <button data-mode="emerald" class="active">
+                Emerald
+            </button>
+
+            <button data-mode="morph">
+                Morph
+            </button>
+
+            <div class="toggle">
+                <span>Animate</span>
+
+                <button
+                    class="switch on"
+                    id="animateToggle"
+                    aria-label="Toggle animation"
+                    aria-pressed="true">
+                </button>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d");
+
+        const animateToggle = document.getElementById("animateToggle");
+        const modeButtons = document.querySelectorAll("[data-mode]");
+
+        let width;
+        let height;
+        let particles = [];
+        let backgroundParticles = [];
+
+        let animationEnabled = true;
+        let currentMode = "emerald";
+        let time = 0;
+
+        let heartScale = 1;
+        let targetScale = 1;
+
+        const modes = {
+            molten: {
+                color: [255, 105, 40],
+                glow: [255, 65, 20]
+            },
+
+            cosmic: {
+                color: [100, 120, 255],
+                glow: [70, 50, 255]
+            },
+
+            emerald: {
+                color: [80, 255, 130],
+                glow: [0, 255, 75]
+            },
+
+            morph: {
+                color: [0, 255, 220],
+                glow: [0, 220, 255]
+            }
+        };
+
+        function resizeCanvas() {
+            const dpr = Math.min(
+                window.devicePixelRatio || 1,
+                2
+            );
+
+            width = window.innerWidth;
+            height = window.innerHeight;
+
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+
+            canvas.style.width = width + "px";
+            canvas.style.height = height + "px";
+
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            createParticles();
+            createBackground();
+        }
+
+        // Heart equation
+        function heartPoint(t) {
+            const x = 16 * Math.pow(Math.sin(t), 3);
+
+            const y =
+                13 * Math.cos(t) -
+                5 * Math.cos(2 * t) -
+                2 * Math.cos(3 * t) -
+                Math.cos(4 * t);
+
+            return { x, y };
+        }
+
+        function getHeartPosition(t, scale = 1) {
+            const point = heartPoint(t);
+
+            const size = Math.min(
+                width * 0.032,
+                height * 0.024,
+                12
+            ) * scale;
+
+            return {
+                x: width / 2 + point.x * size,
+                y: height / 2 - point.y * size
+            };
+        }
+
+        class Particle {
+            constructor(index, total) {
+                this.index = index;
+                this.total = total;
+
+                this.t = Math.random() * Math.PI * 2;
+
+                this.offset = Math.random() * 15 - 7.5;
+
+              this.speed = 0.003 + Math.random() * 1.20;
+
+                this.size = Math.random() * 1.7 + 0.4;
+
+                this.alpha = Math.random() * 0.7 + 0.2;
+
+                this.randomAngle = Math.random() * Math.PI * 2;
+
+                this.randomDistance = Math.random() * 180;
+
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+
+                this.phase = Math.random() * Math.PI * 2;
+            }
+
+            update() {
+                if (animationEnabled) {
+                    this.t += this.speed;
+
+                    this.randomAngle += 0.003;
+
+                    this.phase += 0.025;
+                }
+
+                const point = getHeartPosition(
+                    this.t,
+                    heartScale
+                );
+
+                const normalX = Math.cos(this.t);
+                const normalY = Math.sin(this.t);
+
+                const offset =
+                    this.offset +
+                    Math.sin(this.phase) * 2;
+
+                this.x = point.x + normalX * offset;
+                this.y = point.y + normalY * offset;
+            }
+
+            draw() {
+                const mode = modes[currentMode];
+
+                const pulse =
+                    0.7 + Math.sin(this.phase) * 0.3;
+
+                const r = mode.color[0];
+                const g = mode.color[1];
+                const b = mode.color[2];
+
+                ctx.beginPath();
+
+                ctx.fillStyle =
+                    `rgba(${r}, ${g}, ${b}, ${this.alpha * pulse})`;
+
+                ctx.shadowBlur = 10;
+                ctx.shadowColor =
+                    `rgb(${mode.glow.join(",")})`;
+
+                ctx.arc(
+                    this.x,
+                    this.y,
+                    this.size,
+                    0,
+                    Math.PI * 2
+                );
+
+                ctx.fill();
+
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        function createParticles() {
+            particles = [];
+
+            const total = width < 600 ? 1600 : 2800;
+
+            for (let i = 0; i < total; i++) {
+                particles.push(
+                    new Particle(i, total)
+                );
+            }
+        }
+
+        // Background cosmic particles
+        function createBackground() {
+            backgroundParticles = [];
+
+            const total = Math.min(
+                Math.floor((width * height) / 500),
+                1800
+            );
+
+            for (let i = 0; i < total; i++) {
+                backgroundParticles.push({
+                    x: Math.random() * width,
+                    y: Math.random() * height,
+
+                    size: Math.random() * 1.5 + 0.3,
+
+                    alpha: Math.random() * 0.6 + 0.1,
+
+                    speed: Math.random() * 0.35 + 0.05,
+
+                    phase: Math.random() * Math.PI * 2
+                });
+            }
+        }
+
+        function drawBackground() {
+            ctx.fillStyle = "rgba(0, 10, 4, 0.35)";
+
+            ctx.fillRect(0, 0, width, height);
+
+            backgroundParticles.forEach(p => {
+                if (animationEnabled) {
+                    p.phase += 0.02;
+                    p.y -= p.speed;
+
+                    if (p.y < 0) {
+                        p.y = height;
+                        p.x = Math.random() * width;
+                    }
+                }
+
+                const alpha =
+                    p.alpha *
+                    (0.65 + Math.sin(p.phase) * 0.35);
+
+                const color = modes[currentMode].color;
+
+                ctx.beginPath();
+
+                ctx.fillStyle =
+                    `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${alpha})`;
+
+                ctx.arc(
+                    p.x,
+                    p.y,
+                    p.size,
+                    0,
+                    Math.PI * 2
+                );
+
+                ctx.fill();
+            });
+        }
+
+        // Draw glowing outline of the heart
+        function drawHeartOutline() {
+            const mode = modes[currentMode];
+
+            ctx.save();
+
+            ctx.beginPath();
+
+            for (let i = 0; i <= 600; i++) {
+                const t = (i / 600) * Math.PI * 2;
+
+                const p = getHeartPosition(t, heartScale);
+
+                if (i === 0) {
+                    ctx.moveTo(p.x, p.y);
+                } else {
+                    ctx.lineTo(p.x, p.y);
+                }
+            }
+
+            ctx.closePath();
+
+            // Outer neon glow
+            ctx.strokeStyle =
+                `rgba(${mode.glow.join(",")}, 0.15)`;
+
+            ctx.lineWidth = 15;
+
+            ctx.shadowBlur = 35;
+
+            ctx.shadowColor =
+                `rgb(${mode.glow.join(",")})`;
+
+            ctx.stroke();
+
+            // Main glowing line
+            ctx.strokeStyle =
+                `rgba(${mode.color.join(",")}, 0.8)`;
+
+            ctx.lineWidth = 2;
+
+            ctx.shadowBlur = 18;
+
+            ctx.stroke();
+
+            // Bright center line
+            ctx.strokeStyle = "#d7ffe2";
+
+            ctx.lineWidth = 0.7;
+
+            ctx.shadowBlur = 12;
+
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawEnergyTrail() {
+            const mode = modes[currentMode];
+
+            const trailLength = 0.45;
+
+            const end = time * 0.012;
+
+            ctx.save();
+
+            for (let i = 0; i < 100; i++) {
+                const progress = i / 100;
+
+                const t =
+                    end - trailLength * (1 - progress);
+
+                const p = getHeartPosition(t, heartScale);
+
+                const alpha = progress * 0.9;
+
+                const radius =
+                    1 + progress * 3.5;
+
+                ctx.beginPath();
+
+                ctx.fillStyle =
+                    `rgba(${mode.color.join(",")}, ${alpha})`;
+
+                ctx.shadowColor =
+                    `rgb(${mode.glow.join(",")})`;
+
+                ctx.shadowBlur = 20;
+
+                ctx.arc(
+                    p.x,
+                    p.y,
+                    radius,
+                    0,
+                    Math.PI * 2
+                );
+
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (animationEnabled) {
+                time += 1;
+
+                targetScale =
+                    1 + Math.sin(time * 0.025) * 0.025;
+
+                heartScale +=
+                    (targetScale - heartScale) * 0.08;
+            }
+
+            ctx.clearRect(0, 0, width, height);
+
+            drawBackground();
+
+            drawHeartOutline();
+
+            particles.forEach(particle => {
+                particle.update();
+                particle.draw();
+            });
+
+            drawEnergyTrail();
+        }
+
+        // Change animation color and mode
+        modeButtons.forEach(button => {
+            button.addEventListener("click", () => {
+                currentMode = button.dataset.mode;
+
+                modeButtons.forEach(btn => {
+                    btn.classList.remove("active");
+                });
+
+                button.classList.add("active");
+
+                // Morph mode slightly changes the heart scale
+                if (currentMode === "morph") {
+                    targetScale = 1.15;
+                } else {
+                    targetScale = 1;
+                }
+            });
+        });
+
+        // Start / Stop animation
+        animateToggle.addEventListener("click", () => {
+            animationEnabled = !animationEnabled;
+
+            animateToggle.classList.toggle(
+                "on",
+                animationEnabled
+            );
+
+            animateToggle.setAttribute(
+                "aria-pressed",
+                String(animationEnabled)
+            );
+        });
+
+        window.addEventListener("resize", resizeCanvas);
+
+        // Start
+        resizeCanvas();
+
+        ctx.fillStyle = "#001207";
+        ctx.fillRect(0, 0, width, height);
+
+        animate();
+    </script>
+
+</body>
+</html>

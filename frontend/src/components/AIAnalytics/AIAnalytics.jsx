@@ -1,12 +1,8 @@
-/* eslint-disable react-hooks/set-state-in-effect */
-import { useEffect, useState } from "react";
-
-import "./AIAnalytics.css";
+import { useCallback, useEffect, useState } from "react";
 import api from "../../services/api";
+import "./AIAnalytics.css";
 
 function AIAnalytics() {
-
-
   const [stats, setStats] = useState({
     chats: 0,
     messages: 0,
@@ -21,43 +17,53 @@ function AIAnalytics() {
     systemHealth: "CHECKING",
   });
 
-  const loadAnalytics = async () => {
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const loadAnalytics = useCallback(async () => {
     try {
-      const res = await api.get("/api/analytics");
-       
-      const data = res.data;
+      setLoading(true);
+      setErrorMessage("");
+
+      const res = await api.get("/analytics");
+      const data = res.data || {};
 
       setStats({
-        chats: data.totalChats || 0,
-        messages: data.totalMessages || 0,
-        userMessages: data.userMessages || 0,
-        aiMessages: data.aiMessages || 0,
-        files: data.filesAnalyzed || 0,
-        atsReports: data.atsReports || 0,
-        commands: Number(
-          localStorage.getItem("nexus_commands_count") || 0
-        ),
-        backendStatus: data.backendStatus || "ONLINE",
-        aiStatus: data.aiStatus || "ONLINE",
-        mongoStatus: data.mongoStatus || "CONNECTED",
-        systemHealth: data.systemHealth || "100%",
+        chats: data.totalChats ?? 0,
+        messages: data.totalMessages ?? 0,
+        userMessages: data.userMessages ?? 0,
+        aiMessages: data.aiMessages ?? 0,
+        files: data.filesAnalyzed ?? 0,
+        atsReports: data.atsReports ?? 0,
+        commands: Number(localStorage.getItem("nexus_commands_count") || 0),
+        backendStatus: data.backendStatus || "UNKNOWN",
+        aiStatus: data.aiStatus || "UNKNOWN",
+        mongoStatus: data.mongoStatus || "UNKNOWN",
+        systemHealth: data.systemHealth || "UNKNOWN",
       });
     } catch (error) {
-      console.log("Analytics Error:", error);
+      console.error("Analytics Error:", error);
 
-      setStats((prev) => ({
-        ...prev,
-        backendStatus: "OFFLINE",
-        aiStatus: "OFFLINE",
-        mongoStatus: "ERROR",
-        systemHealth: "ERROR",
-      }));
+      setErrorMessage(
+        error.response?.data?.message ||
+          `Analytics request failed (HTTP ${
+            error.response?.status || "Network Error"
+          }).`,
+      );
+    } finally {
+      setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadAnalytics();
-  }, []);
+
+    const intervalId = window.setInterval(() => {
+      loadAnalytics();
+    }, 10000);
+
+    return () => window.clearInterval(intervalId);
+  }, [loadAnalytics]);
 
   const cards = [
     ["Total Chats", stats.chats],
@@ -73,7 +79,6 @@ function AIAnalytics() {
     ["System Health", stats.systemHealth],
   ];
 
-
   return (
     <div className="analytics-page">
       <h2>AI ANALYTICS</h2>
@@ -82,20 +87,23 @@ function AIAnalytics() {
         NEXUS AI usage, system status and activity overview
       </p>
 
+      {errorMessage && (
+        <p className="analytics-error" role="alert">
+          {errorMessage}
+        </p>
+      )}
+
       <div className="analytics-grid">
         {cards.map(([title, value]) => (
           <div className="analytics-card" key={title}>
             <h3>{title}</h3>
-
             <p
               className={
-                value === "OFFLINE" || value === "ERROR"
+                ["OFFLINE", "ERROR"].includes(String(value))
                   ? "bad"
-                  : value === "ONLINE" ||
-                    value === "CONNECTED" ||
-                    value === "100%"
-                  ? "good"
-                  : ""
+                  : ["ONLINE", "CONNECTED", "100%"].includes(String(value))
+                    ? "good"
+                    : ""
               }
             >
               {value}
@@ -105,11 +113,13 @@ function AIAnalytics() {
       </div>
 
       <button
-  className="analytics-refresh-btn"
-  onClick={loadAnalytics}
->
-  Refresh Analytics
-</button>
+        type="button"
+        className="analytics-refresh-btn"
+        onClick={loadAnalytics}
+        disabled={loading}
+      >
+        {loading ? "Refreshing..." : "Refresh Analytics"}
+      </button>
     </div>
   );
 }

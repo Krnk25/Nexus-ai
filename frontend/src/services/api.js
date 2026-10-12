@@ -1,3 +1,4 @@
+
 import axios from "axios";
 
 const API_BASE_URL =
@@ -11,10 +12,36 @@ const api = axios.create({
   },
 });
 
-export const sendAIMessage = async (message) => {
-  const res = await api.post("/api/ai/chat", { message });
-  return res.data;
+
+const sendToAI = async (message) => {
+  try {
+    setStatus("Thinking...");
+
+    const data = await sendAIMessage(message);
+
+    const aiReply =
+      data?.reply ||
+      data?.message ||
+      data?.response ||
+      data?.text ||
+      "Sorry, I could not understand that.";
+
+    setStatus("Speaking...");
+    speak(aiReply);
+  } catch (error) {
+    console.error("AI Error:", error);
+
+    const errorMessage =
+      error?.message?.includes("503")
+        ? "AI server is busy right now. Please try again."
+        : "AI service is temporarily unavailable.";
+
+    setStatus(errorMessage);
+    speak(errorMessage);
+  }
 };
+
+
 
 export const getAnalytics = async () => {
   const res = await api.get("/api/analytics");
@@ -37,3 +64,4 @@ export const getActivity = async () => {
 };
 
 export default api;
+

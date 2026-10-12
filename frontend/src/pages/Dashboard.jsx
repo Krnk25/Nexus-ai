@@ -1,9 +1,7 @@
-/* eslint-disable no-useless-assignment */
-/* eslint-disable react-hooks/purity */
-
-import axios from "axios";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
+import API from "../api/api";
 
 import AIAnalytics from "../components/AIAnalytics/AIAnalytics";
 import ActivityLogs from "../components/ActivityLogs/ActivityLogs";
@@ -14,6 +12,7 @@ import Settings from "../components/Settings/Settings";
 import SystemControl from "../components/SystemControl/SystemControl";
 import VoiceAssistant from "../components/VoiceAssistant/VoiceAssistant";
 import Chat from "./Chat";
+import SystemAPI from "../services/systemApi";
 
 import "../styles/dashboard.css";
 
@@ -36,41 +35,101 @@ import {
   FaYoutube,
 } from "react-icons/fa";
 
+/* =========================================================
+   BACKEND URL
+========================================================= */
+
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
-  "https://nexus-ai-backend-1bpy.onrender.com";
+  "https://nexus-ai-backend-1bpy.onrender.com/api";
 
-const API = axios.create({
-  baseURL: `${API_BASE_URL}/api`,
-  headers: { "Content-Type": "application/json" },
-  timeout: 120000,
-});
+const HEALTH_URL = API_BASE_URL.replace(/\/api\/?$/, "");
+
+/* =========================================================
+   MENU
+========================================================= */
 
 const menu = [
-  { icon: <FaHome />, text: "Dashboard" },
-  { icon: <FaComments />, text: "AI Chat" },
-  { icon: <FaMicrophone />, text: "Voice Command" },
-  { icon: <FaDesktop />, text: "System & Web" },
-  { icon: <FaChartBar />, text: "File Analyzer" },
-  { icon: <FaChartLine />, text: "AI Analytics" },
-  { icon: <FaCog />, text: "Settings" },
+  {
+    icon: <FaHome />,
+    text: "Dashboard",
+  },
+  {
+    icon: <FaComments />,
+    text: "AI Chat",
+  },
+  {
+    icon: <FaMicrophone />,
+    text: "Voice Command",
+  },
+  {
+    icon: <FaDesktop />,
+    text: "System & Web",
+  },
+  {
+    icon: <FaChartBar />,
+    text: "File Analyzer",
+  },
+  {
+    icon: <FaChartLine />,
+    text: "AI Analytics",
+  },
+  {
+    icon: <FaCog />,
+    text: "Settings",
+  },
 ];
+
+/* =========================================================
+   QUICK COMMANDS
+
+   IMPORTANT:
+   No URL or system command logic here.
+   Everything goes through runSystemCommand().
+========================================================= */
 
 const quickCommands = [
-  { icon: <FaGoogle />, text: "Open Google" },
-  { icon: <FaYoutube />, text: "Open YouTube" },
-  { icon: <FaGithub />, text: "Open GitHub" },
-  { icon: <FaDesktop />, text: "What is React?" },
-  { icon: <FaCloudSun />, text: "Weather Update" },
+  {
+    icon: <FaGoogle />,
+    text: "Open Google",
+  },
+  {
+    icon: <FaYoutube />,
+    text: "Open YouTube",
+  },
+  {
+    icon: <FaGithub />,
+    text: "Open GitHub",
+  },
+  {
+    icon: <FaDesktop />,
+    text: "What is React?",
+  },
+  {
+    icon: <FaCloudSun />,
+    text: "Weather Update",
+  },
 ];
 
+/* =========================================================
+   MATRIX
+========================================================= */
+
 const makeBinary = () =>
-  Array.from({ length: 22 })
-    .map(() => (Math.random() > 0.5 ? "1" : "0"))
-    .join("\n");
+  Array.from({ length: 22 }, () => (Math.random() > 0.5 ? "1" : "0")).join(
+    "\n",
+  );
+
+/* =========================================================
+   DASHBOARD
+========================================================= */
 
 export default function Dashboard() {
   const navigate = useNavigate();
+
+  /* =======================================================
+     MODALS
+  ======================================================= */
 
   const [showChat, setShowChat] = useState(false);
   const [showVoice, setShowVoice] = useState(false);
@@ -82,38 +141,87 @@ export default function Dashboard() {
   const [showActivity, setShowActivity] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
 
+  /* =======================================================
+     PROFILE
+  ======================================================= */
+
+  const [databaseProfile, setDatabaseProfile] = useState(null);
+
+  const [profileLoading, setProfileLoading] = useState(true);
+
+  /* =======================================================
+     CHAT
+  ======================================================= */
+
   const [input, setInput] = useState("");
+
+  const [messages, setMessages] = useState([
+    "NEXUS AI v3.0.0",
+    "Hello Karan 👋",
+    "karan Click mic and ask anything. SHIFRA will answer directly.",
+  ]);
+
+  const [sending, setSending] = useState(false);
+
+  /* =======================================================
+     VOICE
+  ======================================================= */
+
   const [listening, setListening] = useState(false);
   const [voiceReady, setVoiceReady] = useState(false);
-  const [sending, setSending] = useState(false);
+  const [voiceActive, setVoiceActive] = useState(false);
+
+  /* =======================================================
+     SYSTEM
+  ======================================================= */
+
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
 
   const [networkStatus, setNetworkStatus] = useState(
     navigator.onLine ? "READY" : "OFFLINE",
   );
+
   const [backendStatus, setBackendStatus] = useState("CHECKING");
+
   const [systemStatus, setSystemStatus] = useState("READY");
 
-  const [messages, setMessages] = useState([
-    "NEXUS AI v3.0.0",
-    "Hello Karan 👋",
-    "Click mic and ask anything. NEXUS AI will answer directly.",
-  ]);
+  /* =======================================================
+     REFS
+  ======================================================= */
 
   const consoleEndRef = useRef(null);
+
   const recognitionRef = useRef(null);
+
+  const voiceActiveRef = useRef(false);
+
+  const listeningRef = useRef(false);
+
   const speakingRef = useRef(false);
-  const autoListenRef = useRef(false);
+
   const thinkingRef = useRef(false);
+
+  const restartTimerRef = useRef(null);
+
   const voicesRef = useRef([]);
+
   const conversationHistoryRef = useRef([]);
-  const lastQuestionRef = useRef({ text: "", time: 0 });
+
+  const lastQuestionRef = useRef({
+    text: "",
+    time: 0,
+  });
+
+  /* =======================================================
+     MATRIX RAIN
+  ======================================================= */
 
   const rain = useMemo(
     () =>
-      Array.from({ length: 60 }).map((_, i) => ({
-        id: i,
-        left: `${(i / 60) * 100}%`,
+      Array.from({ length: 60 }).map((_, index) => ({
+        id: index,
+        left: `${(index / 60) * 100}%`,
+        // eslint-disable-next-line react-hooks/purity
         duration: `${7 + Math.random() * 6}s`,
         delay: `${Math.random() * 5}s`,
         text: makeBinary(),
@@ -121,14 +229,72 @@ export default function Dashboard() {
     [],
   );
 
-  useEffect(() => {
-    consoleEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  /* =======================================================
+     LOAD PROFILE
+  ======================================================= */
 
   useEffect(() => {
-    const timer = setInterval(() => setCurrentDateTime(new Date()), 1000);
+    const loadProfile = async () => {
+      try {
+        setProfileLoading(true);
+
+        const response = await axios.get(
+  "https://nexus-ai-backend-1bpy.onrender.com/api/profile"
+);
+        const profile = response.data?.profile || response.data;
+
+        if (profile) {
+          setDatabaseProfile(profile);
+
+          localStorage.setItem("nexus_profile", JSON.stringify(profile));
+        }
+      } catch (error) {
+        console.error("MongoDB profile fetch error:", error);
+
+        try {
+          const saved = JSON.parse(
+            localStorage.getItem("nexus_profile") || "null",
+          );
+
+          if (saved) {
+            setDatabaseProfile(saved);
+          }
+        } catch (localError) {
+          console.error("Local profile backup error:", localError);
+        }
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+
+    loadProfile();
+  }, []);
+
+  /* =======================================================
+     AUTO SCROLL
+  ======================================================= */
+
+  useEffect(() => {
+    consoleEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+    });
+  }, [messages]);
+
+  /* =======================================================
+     CLOCK
+  ======================================================= */
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 1000);
+
     return () => clearInterval(timer);
   }, []);
+
+  /* =======================================================
+     NETWORK
+  ======================================================= */
 
   useEffect(() => {
     const updateNetwork = () => {
@@ -136,28 +302,51 @@ export default function Dashboard() {
     };
 
     window.addEventListener("online", updateNetwork);
+
     window.addEventListener("offline", updateNetwork);
 
     return () => {
       window.removeEventListener("online", updateNetwork);
+
       window.removeEventListener("offline", updateNetwork);
     };
   }, []);
 
+  /* =======================================================
+     BACKEND HEALTH
+  ======================================================= */
+
   useEffect(() => {
     const checkBackend = async () => {
       try {
-        await axios.get(API_BASE_URL, { timeout: 30000 });
-        setBackendStatus("ACTIVE");
-      } catch {
+        const response = await fetch(HEALTH_URL, {
+          method: "GET",
+          signal: AbortSignal.timeout(30000),
+        });
+
+        if (response.ok) {
+          setBackendStatus("ACTIVE");
+          console.log("🟢 Backend is ACTIVE");
+        } else {
+          setBackendStatus("FAILED");
+          console.error("🔴 Backend health check failed:", response.status);
+        }
+      } catch (error) {
+        console.error("❌ Backend health check error:", error);
         setBackendStatus("FAILED");
       }
     };
 
     checkBackend();
+
     const timer = setInterval(checkBackend, 15000);
+
     return () => clearInterval(timer);
   }, []);
+
+  /* =======================================================
+     LOAD TTS VOICES
+  ======================================================= */
 
   useEffect(() => {
     const loadVoices = () => {
@@ -165,6 +354,7 @@ export default function Dashboard() {
     };
 
     loadVoices();
+
     if (window.speechSynthesis) {
       window.speechSynthesis.onvoiceschanged = loadVoices;
     }
@@ -176,24 +366,45 @@ export default function Dashboard() {
     };
   }, []);
 
+  /* =======================================================
+     CLEANUP
+  ======================================================= */
+
   useEffect(() => {
     return () => {
-      try {
-        autoListenRef.current = false;
-        recognitionRef.current?.stop();
-        window.speechSynthesis?.cancel();
-      } catch {
-        // ignore cleanup error
+      voiceActiveRef.current = false;
+
+      if (restartTimerRef.current) {
+        clearTimeout(restartTimerRef.current);
       }
+
+      try {
+        recognitionRef.current?.stop();
+      } catch {
+        // ignore
+      }
+
+      window.speechSynthesis?.cancel();
     };
   }, []);
 
+  /* =======================================================
+     SAFE TEXT
+  ======================================================= */
+
   const safeText = (value, fallback = "") => {
-    if (value === undefined || value === null) return fallback;
-    if (typeof value === "string") return value;
+    if (value === undefined || value === null) {
+      return fallback;
+    }
+
+    if (typeof value === "string") {
+      return value;
+    }
+
     if (typeof value === "number" || typeof value === "boolean") {
       return String(value);
     }
+
     if (typeof value === "object") {
       return (
         value.reply ||
@@ -204,38 +415,61 @@ export default function Dashboard() {
         JSON.stringify(value)
       );
     }
+
     return String(value);
   };
 
+  /* =======================================================
+     PERSONAL DATA
+  ======================================================= */
+
   const getPersonalData = () => {
-    const fallbackProfile = {
-      name: "Karan Kabade",
-      email: "karankabade7@gmail.com",
-      mobile: "8265044456",
-      education: "B.Sc Computer Science",
+    const emptyProfile = {
+      name: "",
+      email: "",
+      mobile: "",
+      education: "",
       college: "",
-      skills: "React, Node.js, Express.js, MongoDB, PHP, MySQL",
-      github: "https://github.com/Krnk25",
-      linkedin: "www.linkedin.com/in/karan-kabade",
+      skills: "",
+      github: "",
+      linkedin: "",
       portfolio: "",
-      location: "beed",
+      location: "",
       bio: "",
     };
 
-    try {
-      const savedProfile = JSON.parse(
-        localStorage.getItem("nexus_profile") || "{}",
-      );
-      return { ...fallbackProfile, ...savedProfile };
-    } catch (error) {
-      console.error("Profile read error:", error);
-      return fallbackProfile;
+    if (!databaseProfile) {
+      return emptyProfile;
     }
+
+    return {
+      name: databaseProfile.name || "",
+      email: databaseProfile.email || "",
+      mobile: databaseProfile.mobile || "",
+      education: databaseProfile.education || "",
+      college: databaseProfile.college || "",
+      skills: databaseProfile.skills || "",
+      github: databaseProfile.github || "",
+      linkedin: databaseProfile.linkedin || "",
+      portfolio: databaseProfile.portfolio || "",
+      location: databaseProfile.location || "",
+      bio: databaseProfile.bio || "",
+    };
   };
 
+  /* =======================================================
+     AI REPLY
+  ======================================================= */
+
   const getAIReply = (data) => {
-    if (!data) return "No reply received from AI.";
-    if (typeof data === "string") return data;
+    if (!data) {
+      return "No reply received from AI.";
+    }
+
+    if (typeof data === "string") {
+      return data;
+    }
+
     return safeText(
       data.reply ||
         data.answer ||
@@ -251,34 +485,59 @@ export default function Dashboard() {
     );
   };
 
+  /* =======================================================
+     ADD MESSAGE
+  ======================================================= */
+
   const addMessage = (message) => {
     const finalMessage = safeText(message, "");
-    if (!finalMessage || finalMessage === "undefined") return;
+
+    if (!finalMessage) return;
+
     setMessages((prev) => [...prev, finalMessage]);
   };
 
+  /* =======================================================
+     REPLACE LAST MESSAGE
+  ======================================================= */
+
   const replaceLastMessage = (message) => {
     const finalMessage = safeText(message, "No message.");
+
     setMessages((prev) => {
+      if (!prev.length) {
+        return [finalMessage];
+      }
+
       const updated = [...prev];
-      if (updated.length === 0) return [finalMessage];
-      updated.pop();
-      return [...updated, finalMessage];
+
+      updated[updated.length - 1] = finalMessage;
+
+      return updated;
     });
   };
 
+  /* =======================================================
+     CONVERSATION HISTORY
+  ======================================================= */
+
   const addToConversationHistory = (role, content) => {
     const finalContent = safeText(content, "");
-    if (!finalContent || finalContent === "undefined") return;
+
+    if (!finalContent) return;
 
     conversationHistoryRef.current = [
       ...conversationHistoryRef.current,
-      { role, content: finalContent },
+      {
+        role,
+        content: finalContent,
+      },
     ].slice(-16);
   };
 
-  const getRecognitionLang = () =>
-    localStorage.getItem("nexus_recognition_lang") || "en-IN";
+  /* =======================================================
+     LANGUAGE
+  ======================================================= */
 
   const detectVoiceLang = (text) => {
     const msg = safeText(text, "").toLowerCase();
@@ -298,7 +557,6 @@ export default function Dashboard() {
       "वेळ",
       "तारीख",
       "वाजले",
-      "आजची",
       "kay",
       "kasa",
       "kashi",
@@ -322,7 +580,7 @@ export default function Dashboard() {
       "समय",
       "नाम",
       "तारीख",
-      "कितने बजे",
+      "अभी",
       "kya",
       "kaise",
       "mujhe",
@@ -332,12 +590,22 @@ export default function Dashboard() {
       "samay",
     ];
 
-    if (marathiWords.some((word) => msg.includes(word))) return "mr-IN";
-    if (hindiWords.some((word) => msg.includes(word))) return "hi-IN";
+    if (marathiWords.some((word) => msg.includes(word))) {
+      return "mr-IN";
+    }
+
+    if (hindiWords.some((word) => msg.includes(word))) {
+      return "hi-IN";
+    }
+
     return "en-IN";
   };
 
-  const getIndianFemaleVoice = (lang = "en-IN") => {
+  /* =======================================================
+     FEMALE / INDIAN VOICE
+  ======================================================= */
+
+  const getIndianFemaleVoice = (lang) => {
     const voices = voicesRef.current.length
       ? voicesRef.current
       : window.speechSynthesis?.getVoices() || [];
@@ -357,81 +625,362 @@ export default function Dashboard() {
     const isFemale = (voice) =>
       femaleNames.some((name) => voice.name.toLowerCase().includes(name));
 
-    if (lang === "mr-IN") {
-      return (
-        voices.find((v) => v.lang === "mr-IN" && isFemale(v)) ||
-        voices.find((v) => v.lang === "mr-IN") ||
-        voices.find((v) => v.lang === "hi-IN" && isFemale(v)) ||
-        voices.find((v) => v.lang === "hi-IN") ||
-        voices.find((v) => v.lang === "en-IN") ||
-        voices.find((v) => v.lang.startsWith("en")) ||
-        voices[0]
-      );
-    }
-
-    if (lang === "hi-IN") {
-      return (
-        voices.find((v) => v.lang === "hi-IN" && isFemale(v)) ||
-        voices.find((v) => v.lang === "hi-IN") ||
-        voices.find((v) => v.lang === "en-IN") ||
-        voices.find((v) => v.lang.startsWith("en")) ||
-        voices[0]
-      );
-    }
-
     return (
-      voices.find((v) => v.lang === "en-IN" && isFemale(v)) ||
-      voices.find((v) => v.lang === "en-IN") ||
-      voices.find((v) => v.lang.startsWith("en")) ||
+      voices.find((voice) => voice.lang === lang && isFemale(voice)) ||
+      voices.find((voice) => voice.lang === lang) ||
+      voices.find((voice) => voice.lang.startsWith(lang.split("-")[0])) ||
+      voices.find((voice) => voice.lang.toLowerCase().startsWith("en-in")) ||
+      voices.find((voice) => voice.lang.toLowerCase().startsWith("en")) ||
       voices[0]
     );
   };
 
+  /* =======================================================
+     SPEAK
+  ======================================================= */
+
   const speak = (replyText) => {
     const finalText = safeText(replyText, "");
-    if (!finalText || finalText === "undefined" || !window.speechSynthesis)
+
+    if (!finalText || !window.speechSynthesis) {
       return;
+    }
 
     const cleanText = finalText.replace(
       /```[\s\S]*?```/g,
       "Code block generated in console.",
     );
 
-    const voiceLang = detectVoiceLang(cleanText);
+    const language = detectVoiceLang(cleanText);
+
     window.speechSynthesis.cancel();
 
-    const speech = new SpeechSynthesisUtterance(cleanText);
-    speech.lang = voiceLang;
-    speech.rate = 0.92;
-    speech.pitch = 1.2;
-    speech.volume = 1;
+    const utterance = new SpeechSynthesisUtterance(cleanText);
 
-    const voice = getIndianFemaleVoice(voiceLang);
-    if (voice) speech.voice = voice;
+    utterance.lang = language;
+    utterance.rate = 0.92;
+    utterance.pitch = 1.15;
+    utterance.volume = 1;
 
-    speech.onstart = () => {
+    const voice = getIndianFemaleVoice(language);
+
+    if (voice) {
+      utterance.voice = voice;
+    }
+
+    utterance.onstart = () => {
       speakingRef.current = true;
+
+      setInput("NEXUS AI is speaking...");
     };
 
-    speech.onend = () => {
+    utterance.onend = () => {
       speakingRef.current = false;
-      if (autoListenRef.current) {
-        setTimeout(() => startDirectListening(), 500);
+
+      setInput("");
+
+      if (voiceActiveRef.current) {
+        restartVoiceRecognition();
       }
     };
 
-    speech.onerror = () => {
+    utterance.onerror = () => {
       speakingRef.current = false;
-      if (autoListenRef.current) {
-        setTimeout(() => startDirectListening(), 700);
+
+      setInput("");
+
+      if (voiceActiveRef.current) {
+        restartVoiceRecognition();
       }
     };
 
-    window.speechSynthesis.speak(speech);
+    window.speechSynthesis.speak(utterance);
   };
 
-  const getCurrentDateReply = (language = "en-IN") => {
-    const currentDate = new Date().toLocaleDateString(language, {
+  /* =======================================================
+     RESTART VOICE
+  ======================================================= */
+
+  const restartVoiceRecognition = () => {
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current);
+    }
+
+    if (!voiceActiveRef.current) {
+      return;
+    }
+
+    restartTimerRef.current = setTimeout(() => {
+      if (
+        voiceActiveRef.current &&
+        !speakingRef.current &&
+        !thinkingRef.current &&
+        !listeningRef.current
+      ) {
+        startVoiceRecognition();
+      }
+    }, 700);
+  };
+
+  /* =======================================================
+     SYSTEM COMMAND
+  ======================================================= */
+
+  const runSystemCommand = async (command) => {
+    const finalCommand = safeText(command, "").trim();
+
+    if (!finalCommand) {
+      return "No command received.";
+    }
+
+    try {
+      setSystemStatus("PROCESSING");
+
+      console.log("🖥️ SYSTEM COMMAND:", finalCommand);
+
+      const response = await SystemAPI.post("/system/run", {
+  command,
+});
+
+      console.log("🖥️ SYSTEM RESPONSE:", response.data);
+
+      setSystemStatus("READY");
+
+      return getAIReply(response.data) || "Command executed successfully.";
+    } catch (error) {
+      console.error("❌ System command error:", error);
+
+      setSystemStatus("ERROR");
+
+      return (
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        "System command failed."
+      );
+    }
+  };
+
+  /* =======================================================
+     CREATE SPEECH RECOGNITION
+  ======================================================= */
+
+  const createRecognition = () => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      addMessage("🤖 Speech Recognition supported नाही. Chrome वापरा.");
+
+      return null;
+    }
+
+    const recognition = new SpeechRecognition();
+
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    // English commands like:
+    // Open YouTube
+    // Open Google
+    // Open GitHub
+    recognition.lang = "en-IN";
+
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      listeningRef.current = true;
+
+      setListening(true);
+      setVoiceReady(true);
+
+      setInput("🎙️ Listening...");
+    };
+
+    /* =====================================================
+       🔥 IMPORTANT VOICE RESULT
+    ===================================================== */
+
+    recognition.onresult = async (event) => {
+      const transcript = event.results?.[0]?.[0]?.transcript?.trim();
+
+      if (!transcript) {
+        return;
+      }
+
+      console.log("🎙️ VOICE COMMAND:", transcript);
+
+      try {
+        recognition.stop();
+      } catch {
+        // ignore
+      }
+
+      listeningRef.current = false;
+      setListening(false);
+
+      setInput(transcript);
+
+      addMessage(`🎤 ${transcript}`);
+
+      /*
+        IMPORTANT:
+
+        Voice command goes into the SAME pipeline
+        as text command.
+
+        askGeminiDirect()
+              ↓
+        runLocalCommand()
+              ↓
+        runSystemCommand()
+              ↓
+        /api/system/run
+      */
+
+      await askGeminiDirect(transcript, true);
+    };
+
+    recognition.onerror = (event) => {
+      console.error("🎙️ Speech recognition error:", event.error);
+
+      listeningRef.current = false;
+      setListening(false);
+
+      if (!voiceActiveRef.current) {
+        return;
+      }
+
+      if (
+        event.error === "not-allowed" ||
+        event.error === "service-not-allowed"
+      ) {
+        voiceActiveRef.current = false;
+
+        setVoiceActive(false);
+        setVoiceReady(false);
+
+        addMessage(
+          "🤖 Microphone permission blocked. Chrome microphone permission Allow करा.",
+        );
+
+        return;
+      }
+
+      if (event.error === "no-speech") {
+        setInput("No speech detected...");
+      }
+
+      restartVoiceRecognition();
+    };
+
+    recognition.onend = () => {
+      listeningRef.current = false;
+
+      setListening(false);
+
+      if (
+        voiceActiveRef.current &&
+        !speakingRef.current &&
+        !thinkingRef.current
+      ) {
+        restartVoiceRecognition();
+      }
+    };
+
+    return recognition;
+  };
+
+  /* =======================================================
+     START RECOGNITION
+  ======================================================= */
+
+  const startVoiceRecognition = () => {
+    if (!voiceActiveRef.current) {
+      return;
+    }
+
+    if (speakingRef.current || thinkingRef.current || listeningRef.current) {
+      return;
+    }
+
+    const recognition = createRecognition();
+
+    if (!recognition) {
+      voiceActiveRef.current = false;
+
+      setVoiceActive(false);
+      setVoiceReady(false);
+
+      return;
+    }
+
+    recognitionRef.current = recognition;
+
+    try {
+      recognition.start();
+    } catch (error) {
+      console.error("Recognition start error:", error);
+    }
+  };
+
+  /* =======================================================
+     START / STOP VOICE
+  ======================================================= */
+
+  const startVoice = () => {
+    if (voiceActiveRef.current) {
+      stopVoice();
+      return;
+    }
+
+    voiceActiveRef.current = true;
+
+    setVoiceActive(true);
+    setVoiceReady(true);
+
+    addMessage("🎙️ Voice mode activated.");
+
+    startVoiceRecognition();
+  };
+
+  const stopVoice = () => {
+    voiceActiveRef.current = false;
+
+    setVoiceActive(false);
+    setListening(false);
+    setVoiceReady(false);
+
+    listeningRef.current = false;
+    speakingRef.current = false;
+    thinkingRef.current = false;
+
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current);
+
+      restartTimerRef.current = null;
+    }
+
+    try {
+      recognitionRef.current?.stop();
+    } catch {
+      // ignore
+    }
+
+    recognitionRef.current = null;
+
+    window.speechSynthesis?.cancel();
+
+    setInput("");
+
+    addMessage("🛑 Voice mode stopped.");
+  };
+
+  /* =======================================================
+     DATE
+  ======================================================= */
+
+  const getCurrentDateReply = (language) => {
+    const date = new Date().toLocaleDateString(language, {
       timeZone: "Asia/Kolkata",
       weekday: "long",
       day: "numeric",
@@ -439,76 +988,126 @@ export default function Dashboard() {
       year: "numeric",
     });
 
-    if (language === "mr-IN") return `आज ${currentDate} आहे.`;
-    if (language === "hi-IN") return `आज ${currentDate} है।`;
-    return `Today is ${currentDate}.`;
+    if (language === "mr-IN") {
+      return `आज ${date} आहे.`;
+    }
+
+    if (language === "hi-IN") {
+      return `आज ${date} है।`;
+    }
+
+    return `Today is ${date}.`;
   };
 
-  const getCurrentTimeReply = (language = "en-IN") => {
-    const currentTime = new Date().toLocaleTimeString(language, {
+  /* =======================================================
+     TIME
+  ======================================================= */
+
+  const getCurrentTimeReply = (language) => {
+    const time = new Date().toLocaleTimeString(language, {
       timeZone: "Asia/Kolkata",
       hour: "2-digit",
       minute: "2-digit",
       hour12: true,
     });
 
-    if (language === "mr-IN") return `सध्या ${currentTime} वाजले आहेत.`;
-    if (language === "hi-IN") return `अभी ${currentTime} बजे हैं।`;
-    return `The current time is ${currentTime}.`;
+    if (language === "mr-IN") {
+      return `सध्या ${time} वाजले आहेत.`;
+    }
+
+    if (language === "hi-IN") {
+      return `अभी ${time} बजे हैं।`;
+    }
+
+    return `The current time is ${time}.`;
   };
 
-  const isDateQuestion = (command) => {
-    const text = safeText(command, "").toLowerCase();
-    const keywords = [
-      "आजची तारीख",
-      "आज तारीख",
-      "आज कोणती तारीख",
-      "तारीख सांगा",
-      "आज काय तारीख",
-      "आज की तारीख",
-      "आज कौन सी तारीख",
-      "तारीख बताओ",
-      "today date",
-      "today's date",
-      "current date",
-      "what is the date",
-      "what date is today",
-      "tarikh",
-    ];
-    return keywords.some((keyword) => text.includes(keyword));
-  };
-
-  const isTimeQuestion = (command) => {
-    const text = safeText(command, "").toLowerCase();
-    const keywords = [
-      "आताची वेळ",
-      "सध्याची वेळ",
-      "आत्ता किती वाजले",
-      "किती वाजले",
-      "वेळ सांगा",
-      "अभी कितने बजे",
-      "अभी का समय",
-      "समय बताओ",
-      "current time",
-      "what time is it",
-      "time now",
-      "samay",
-    ];
-    return keywords.some((keyword) => text.includes(keyword));
-  };
+  /* =======================================================
+     LOCAL / SYSTEM COMMAND ROUTER
+  ======================================================= */
 
   const runLocalCommand = async (command) => {
-    const originalCommand = safeText(command, "").trim();
-    const cmd = originalCommand.toLowerCase();
-    const detectedLanguage = detectVoiceLang(originalCommand);
+    const original = safeText(command, "").trim();
 
-    if (isDateQuestion(originalCommand)) {
-      return getCurrentDateReply(detectedLanguage);
+    const cmd = original.toLowerCase();
+
+    const language = detectVoiceLang(original);
+
+    if (!original) {
+      return null;
     }
 
-    if (isTimeQuestion(originalCommand)) {
-      return getCurrentTimeReply(detectedLanguage);
+    /* =====================================================
+       DATE
+    ===================================================== */
+
+    if (
+      cmd.includes("today date") ||
+      cmd.includes("today's date") ||
+      cmd.includes("current date") ||
+      cmd.includes("what is the date") ||
+      cmd.includes("तारीख") ||
+      cmd.includes("आजची तारीख")
+    ) {
+      return getCurrentDateReply(language);
     }
+
+    /* =====================================================
+       TIME
+    ===================================================== */
+
+    if (
+      cmd.includes("current time") ||
+      cmd.includes("what time is it") ||
+      cmd.includes("time now") ||
+      cmd.includes("किती वाजले") ||
+      cmd.includes("अभी कितने बजे") ||
+      cmd.includes("samay")
+    ) {
+      return getCurrentTimeReply(language);
+    }
+
+    /* =====================================================
+       MY NAME
+    ===================================================== */
+
+    if (
+      cmd.includes("my name") ||
+      cmd.includes("mera naam") ||
+      cmd.includes("मेरा नाम") ||
+      cmd.includes("माझं नाव") ||
+      cmd.includes("माझे नाव")
+    ) {
+      const profile = getPersonalData();
+
+      if (profile.name) {
+        return `Aapka naam ${profile.name} hai.`;
+      }
+
+      return "Mujhe aapka naam database me nahi mila.";
+    }
+
+    /* =====================================================
+       DEVELOPER
+    ===================================================== */
+
+    if (
+      cmd.includes("who developed you") ||
+      cmd.includes("who created you") ||
+      cmd.includes("who made you") ||
+      cmd.includes("tumhe kisne develop kiya") ||
+      cmd.includes("tumhara developer kaun hai")
+    ) {
+      const profile = getPersonalData();
+
+      return profile.name
+        ? `Mujhe ${profile.name} ne develop kiya hai.`
+        : "Developer information database me available nahi hai.";
+    }
+
+    /* =====================================================
+       WEATHER
+    ===================================================== */
 
     if (
       cmd.includes("weather") ||
@@ -516,374 +1115,261 @@ export default function Dashboard() {
       cmd.includes("हवामान") ||
       cmd.includes("मौसम")
     ) {
-      window.open("https://www.google.com/search?q=weather", "_blank");
-      if (detectedLanguage === "mr-IN") return "हवामानाची माहिती उघडत आहे.";
-      if (detectedLanguage === "hi-IN") return "मौसम की जानकारी खोल रहा हूँ।";
-      return "Opening weather information.";
+      return await runSystemCommand(original);
     }
 
-    if (
-      cmd.includes("open") ||
-      cmd.includes("kholo") ||
-      cmd.includes("खोल") ||
-      cmd.includes("start") ||
-      cmd.includes("lock") ||
-      cmd.includes("shutdown") ||
-      cmd.includes("restart")
-    ) {
-      try {
-        const res = await API.post("/system/run", { command: cmd });
-        setSystemStatus("READY");
-        return getAIReply(res.data) || "Command executed.";
-      } catch (error) {
-        setSystemStatus("ERROR");
-        return (
-          error.response?.data?.message ||
-          error.response?.data?.error ||
-          "System command failed."
-        );
-      }
+    /* =====================================================
+       SYSTEM / WEB COMMANDS
+       
+       IMPORTANT:
+       No URLs here.
+       No window.open here.
+
+       systemController.js is the source of truth.
+    ===================================================== */
+
+    const systemCommandPatterns = [
+      "open ",
+      "start ",
+      "launch ",
+      "kholo",
+      "खोल",
+      "open youtube",
+      "open google",
+      "open github",
+      "open chrome",
+      "open calculator",
+      "open notepad",
+      "youtube",
+      "google",
+      "github",
+      "chrome",
+      "calculator",
+      "notepad",
+      "lock",
+      "restart",
+      "shutdown",
+    ];
+
+    const isSystemCommand = systemCommandPatterns.some((pattern) =>
+      cmd.includes(pattern),
+    );
+
+    if (isSystemCommand) {
+      console.log("🔥 SYSTEM COMMAND DETECTED:", original);
+
+      return await runSystemCommand(original);
     }
+
+    /* =====================================================
+       NORMAL AI QUESTION
+    ===================================================== */
 
     return null;
   };
 
-  const handleQuotaError = (error) => {
-    const isQuota =
-      error.response?.status === 429 ||
-      error.response?.data?.error === "GEMINI_QUOTA_EXCEEDED";
-
-    if (!isQuota) return null;
-
-    autoListenRef.current = false;
-    setVoiceReady(false);
-    setListening(false);
-
-    return (
-      error.response?.data?.message ||
-      "AI API quota khatam ho gaya hai. Voice auto mode stop kar diya."
-    );
-  };
+  /* =======================================================
+     SEND TO OPENAI BACKEND
+  ======================================================= */
 
   const sendMessageToBackend = async (userMessage) => {
+    const personalData = getPersonalData();
+
+    console.log("👤 Profile sent to AI:", personalData);
+
     return API.post("/ai/chat", {
       message: userMessage,
+
       history: conversationHistoryRef.current,
-      settings: { voiceLang: getRecognitionLang() },
-      personalData: getPersonalData(),
+
+      settings: {
+        voiceLang: detectVoiceLang(userMessage),
+      },
+
+      personalData,
     });
   };
 
-  const askGeminiDirect = async (question) => {
+  /* =======================================================
+     ASK AI / COMMAND ENGINE
+  ======================================================= */
+
+  const askGeminiDirect = async (question, voiceAlreadyAdded = false) => {
     const userQuestion = safeText(question, "").trim();
-    if (!userQuestion || userQuestion === "Listening..." || thinkingRef.current)
+
+    if (!userQuestion || thinkingRef.current) {
       return;
+    }
 
     const now = Date.now();
+
     if (
       lastQuestionRef.current.text === userQuestion &&
-      now - lastQuestionRef.current.time < 5000
+      now - lastQuestionRef.current.time < 3000
     ) {
       return;
     }
 
-    lastQuestionRef.current = { text: userQuestion, time: now };
+    lastQuestionRef.current = {
+      text: userQuestion,
+      time: now,
+    };
+
     thinkingRef.current = true;
     setSending(true);
     setInput(userQuestion);
-    addMessage(`🎤 ${userQuestion}`);
-    addMessage("🤖 Thinking...");
+
+    if (!voiceAlreadyAdded) {
+      addMessage(`💬 ${userQuestion}`);
+    }
+
+    addMessage("🤖 Shifra Thinking...");
 
     try {
+      /* =================================================
+         FIRST: LOCAL / SYSTEM COMMAND
+      ================================================= */
+
       const localReply = await runLocalCommand(userQuestion);
 
       if (localReply) {
         replaceLastMessage(`🤖 ${localReply}`);
+
         addToConversationHistory("user", userQuestion);
+
         addToConversationHistory("assistant", localReply);
+
         speak(localReply);
-        setInput("");
+
         return;
       }
 
-      const res = await sendMessageToBackend(userQuestion);
-      const reply = getAIReply(res.data);
+      /* =================================================
+         SECOND: OPENAI
+      ================================================= */
+
+      const response = await sendMessageToBackend(userQuestion);
+
+      const reply = getAIReply(response.data);
 
       setBackendStatus("ACTIVE");
-      setNetworkStatus(navigator.onLine ? "READY" : "OFFLINE");
+
       replaceLastMessage(`🤖 ${reply}`);
+
       addToConversationHistory("user", userQuestion);
+
       addToConversationHistory("assistant", reply);
+
       speak(reply);
-      setInput("");
     } catch (error) {
-      console.error("Direct voice AI error:", error);
-      const quotaMsg = handleQuotaError(error);
-      const errorMsg =
-        quotaMsg ||
-        error.response?.data?.error ||
+      console.error("❌ AI error:", error);
+
+      const errorMessage =
         error.response?.data?.message ||
+        error.response?.data?.error ||
         error.message ||
-        "Backend server error aa raha hai.";
+        "Karan Backend server error aa raha hai.";
 
       setBackendStatus("FAILED");
-      replaceLastMessage(`🤖 ${errorMsg}`);
-      speak(errorMsg);
+
+      replaceLastMessage(`🤖 ${errorMessage}`);
+
+      speak(errorMessage);
     } finally {
       thinkingRef.current = false;
       setSending(false);
+
+      /*
+        If voice mode is active and no speech
+        is currently running, recognition can restart.
+      */
+
+      if (voiceActiveRef.current && !speakingRef.current) {
+        restartVoiceRecognition();
+      }
     }
   };
 
-  const startDirectListening = async () => {
-    try {
-      if (speakingRef.current || thinkingRef.current || listening) return;
-
-      setVoiceReady(true);
-      setInput("Listening...");
-
-      if (!navigator.mediaDevices?.getUserMedia) {
-        const msg = "Microphone permission API supported nahi hai.";
-        setInput("");
-        addMessage(`🤖 ${msg}`);
-        speak(msg);
-        return;
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
-
-      stream.getTracks().forEach((track) => track.stop());
-
-      const SpeechRecognition =
-        window.SpeechRecognition || window.webkitSpeechRecognition;
-
-      if (!SpeechRecognition) {
-        const msg = "Voice recognition supported nahi hai.";
-        setInput("");
-        addMessage(`🤖 ${msg}`);
-        speak(msg);
-        return;
-      }
-
-      try {
-        recognitionRef.current?.abort();
-      } catch {
-        // ignore old recognition abort error
-      }
-
-      const recognition = new SpeechRecognition();
-      recognitionRef.current = recognition;
-      recognition.lang = getRecognitionLang();
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
-
-      recognition.onstart = () => {
-        setListening(true);
-        setInput("Listening...");
-      };
-
-      recognition.onresult = async (event) => {
-        const voiceText = event.results?.[0]?.[0]?.transcript?.trim();
-        setListening(false);
-
-        if (!voiceText) {
-          setInput("");
-          return;
-        }
-
-        setInput(voiceText);
-
-        try {
-          recognition.stop();
-        } catch {
-          // ignore stop error
-        }
-
-        await askGeminiDirect(voiceText);
-      };
-
-      recognition.onerror = (event) => {
-        console.error("Dashboard Voice Error:", event.error);
-        setListening(false);
-
-        if (event.error === "aborted") return;
-
-        if (event.error === "no-speech") {
-          setInput("");
-          if (autoListenRef.current) {
-            setTimeout(() => startDirectListening(), 800);
-          }
-          return;
-        }
-
-        let msg = "";
-
-        if (event.error === "not-allowed") {
-          msg =
-            "Mic permission blocked hai. Windows aur app settings me microphone Allow karo.";
-          autoListenRef.current = false;
-        } else if (event.error === "audio-capture") {
-          msg = "Mic device detect nahi hua. Windows input mic check karo.";
-          autoListenRef.current = false;
-        } else if (event.error === "network") {
-          msg =
-            "Electron Speech Recognition network error. Desktop app me browser speech service reliable nahi hai.";
-          autoListenRef.current = false;
-          setVoiceReady(false);
-        } else {
-          msg = `Voice error: ${event.error}`;
-        }
-
-        setInput("");
-        if (msg) {
-          addMessage(`🤖 ${msg}`);
-          speak(msg);
-        }
-      };
-
-      recognition.onend = () => {
-        setListening(false);
-        if (
-          autoListenRef.current &&
-          !speakingRef.current &&
-          !thinkingRef.current
-        ) {
-          setTimeout(() => startDirectListening(), 800);
-        }
-      };
-
-      window.speechSynthesis?.cancel();
-      recognition.start();
-    } catch (error) {
-      console.error("Mic Permission Error:", error);
-      setListening(false);
-      setInput("");
-
-      let msg = "Mic start failed.";
-
-      if (
-        error.name === "NotAllowedError" ||
-        error.name === "PermissionDeniedError"
-      ) {
-        msg =
-          "Mic permission blocked hai. Windows Settings me microphone Allow karo.";
-        autoListenRef.current = false;
-      } else if (error.name === "NotFoundError") {
-        msg = "Microphone device nahi mila.";
-        autoListenRef.current = false;
-      }
-
-      addMessage(`🤖 ${msg}`);
-      speak(msg);
-    }
-  };
-
-  const activateVoice = () => {
-    if (listening) return;
-    autoListenRef.current = true;
-    setVoiceReady(true);
-    addMessage("🎤 Voice activated. Ask anything.");
-    startDirectListening();
-  };
-
-  const stopVoice = () => {
-    try {
-      autoListenRef.current = false;
-      recognitionRef.current?.abort();
-      window.speechSynthesis?.cancel();
-      setListening(false);
-      setVoiceReady(false);
-      setInput("");
-      addMessage("🤖 Voice stopped.");
-    } catch {
-      addMessage("🤖 Voice stop failed.");
-    }
-  };
+  /* =======================================================
+     TEXT SEND
+  ======================================================= */
 
   const handleSend = async (textValue = input) => {
-    const userMessage = safeText(textValue, "").trim();
+    const message = safeText(textValue, "").trim();
 
-    if (!userMessage || userMessage === "Listening..." || sending) return;
-
-    setSending(true);
-    addMessage(`💬 ${userMessage}`);
-    addMessage("🤖 Thinking...");
-
-    try {
-      const localReply = await runLocalCommand(userMessage);
-
-      if (localReply) {
-        replaceLastMessage(`🤖 ${localReply}`);
-        addToConversationHistory("user", userMessage);
-        addToConversationHistory("assistant", localReply);
-        speak(localReply);
-        setInput("");
-        return;
-      }
-
-      const res = await sendMessageToBackend(userMessage);
-      const reply = getAIReply(res.data);
-
-      setBackendStatus("ACTIVE");
-      setNetworkStatus(navigator.onLine ? "READY" : "OFFLINE");
-      replaceLastMessage(`🤖 ${reply}`);
-      addToConversationHistory("user", userMessage);
-      addToConversationHistory("assistant", reply);
-      speak(reply);
-      setInput("");
-    } catch (error) {
-      console.error("Dashboard console error:", error);
-
-      const quotaMsg = handleQuotaError(error);
-      const errorMsg =
-        quotaMsg ||
-        error.response?.data?.error ||
-        error.response?.data?.message ||
-        error.message ||
-        "Backend server error aa raha hai.";
-
-      setBackendStatus("FAILED");
-      replaceLastMessage(`🤖 ${errorMsg}`);
-      speak(errorMsg);
-      setInput(userMessage);
-    } finally {
-      setSending(false);
+    if (
+      !message ||
+      message === "Shifra Listening..." ||
+      message === "🎙️ Shifra Listening..." ||
+      sending
+    ) {
+      return;
     }
+
+    await askGeminiDirect(message, false);
+
+    setInput("");
   };
+
+  /* =======================================================
+     CLEAR CONSOLE
+  ======================================================= */
 
   const clearConsole = () => {
     conversationHistoryRef.current = [];
-    lastQuestionRef.current = { text: "", time: 0 };
+
+    lastQuestionRef.current = {
+      text: "",
+      time: 0,
+    };
+
     setInput("");
+
     setMessages([
       "NEXUS AI v3.0.0",
       "Console cleared.",
-      "Click mic and ask anything.",
+      "Karan Click mic and ask anything.",
     ]);
   };
 
+  /* =======================================================
+     STATUS
+  ======================================================= */
+
   const getStatusWidth = (value) => {
-    if (value === "OFF" || value === "FAILED" || value === "OFFLINE") {
+    if (
+      value === "OFF" ||
+      value === "FAILED" ||
+      value === "OFFLINE" ||
+      value === "ERROR"
+    ) {
       return "25%";
     }
+
     if (value === "CHECKING" || value === "LOCKED") {
       return "50%";
     }
+
+    if (value === "PROCESSING") {
+      return "65%";
+    }
+
     return "85%";
   };
 
   const isBadStatus = (value) =>
     value === "FAILED" || value === "OFFLINE" || value === "ERROR";
 
+  /* =======================================================
+     UI
+  ======================================================= */
+
   return (
     <div className="nexus-page">
+      {/* =================================================
+          MATRIX
+      ================================================= */}
+
       <div className="matrix-rain">
         {rain.map((item) => (
           <span
@@ -899,6 +1385,10 @@ export default function Dashboard() {
         ))}
       </div>
 
+      {/* =================================================
+          TOPBAR
+      ================================================= */}
+
       <header className="topbar">
         <div className="brand">
           <button className="menu-btn" type="button">
@@ -907,13 +1397,19 @@ export default function Dashboard() {
 
           <div className="brand-text">
             <h1>NEXUS AI</h1>
+
             <p>KARAN&apos;S PERSONAL ASSISTANT</p>
           </div>
         </div>
 
         <div className="online-badge">
           <span></span>
-          {listening ? "LISTENING" : "SYSTEM ONLINE"}
+
+          {voiceActive
+            ? listening
+              ? "LISTENING"
+              : "VOICE ACTIVE"
+            : "SYSTEM ONLINE"}
         </div>
 
         <div className="header-right">
@@ -923,6 +1419,7 @@ export default function Dashboard() {
                 timeZone: "Asia/Kolkata",
               })}
             </h3>
+
             <p>
               {currentDateTime.toLocaleDateString("en-IN", {
                 timeZone: "Asia/Kolkata",
@@ -938,7 +1435,6 @@ export default function Dashboard() {
             className="activity-btn"
             type="button"
             onClick={() => setShowActivity(true)}
-            title="Activity Logs"
           >
             <FaClipboardList />
           </button>
@@ -947,7 +1443,6 @@ export default function Dashboard() {
             className="memory-btn"
             type="button"
             onClick={() => setShowMemory(true)}
-            title="Memory Manager"
           >
             <FaBrain />
           </button>
@@ -956,12 +1451,15 @@ export default function Dashboard() {
             className="user-btn"
             type="button"
             onClick={() => setShowProfile(true)}
-            title="Profile"
           >
             <FaUser />
           </button>
         </div>
       </header>
+
+      {/* =================================================
+          PROFILE
+      ================================================= */}
 
       {showProfile && (
         <div className="profile-overlay">
@@ -973,10 +1471,19 @@ export default function Dashboard() {
             >
               ✕
             </button>
-            <Profile />
+
+            {profileLoading ? (
+              <div className="profile-loading">Loading profile...</div>
+            ) : (
+              <Profile />
+            )}
           </div>
         </div>
       )}
+
+      {/* =================================================
+          MEMORY
+      ================================================= */}
 
       {showMemory && (
         <div className="memory-overlay">
@@ -988,10 +1495,15 @@ export default function Dashboard() {
             >
               ✕
             </button>
+
             <MemoryManager />
           </div>
         </div>
       )}
+
+      {/* =================================================
+          ACTIVITY
+      ================================================= */}
 
       {showActivity && (
         <div className="activity-overlay">
@@ -1003,12 +1515,21 @@ export default function Dashboard() {
             >
               ✕
             </button>
+
             <ActivityLogs />
           </div>
         </div>
       )}
 
+      {/* =================================================
+          MAIN
+      ================================================= */}
+
       <main className="dashboard-layout">
+        {/* =================================================
+            LEFT
+        ================================================= */}
+
         <aside className="left-side">
           <div className="glass-panel nav-panel">
             {menu.map((item, index) => (
@@ -1020,65 +1541,82 @@ export default function Dashboard() {
                     case "Dashboard":
                       navigate("/");
                       break;
+
                     case "AI Chat":
                       setShowChat(true);
                       break;
+
                     case "Voice Command":
                       setShowVoice(true);
                       break;
+
                     case "System & Web":
                       setShowSystem(true);
                       break;
+
                     case "AI Analytics":
                       setShowAnalytics(true);
                       break;
+
                     case "File Analyzer":
                       setShowFileAnalyzer(true);
                       break;
+
                     case "Settings":
                       setShowSettings(true);
                       break;
+
                     default:
                       break;
                   }
                 }}
               >
                 <span>{item.icon}</span>
+
                 <p>{item.text}</p>
+
                 <b>›</b>
               </div>
             ))}
           </div>
 
+          {/* SYSTEM STATUS */}
+
           <div className="glass-panel status-panel">
             <div className="panel-title">
               <h3>SYSTEM STATUS</h3>
+
               <span>⊙</span>
             </div>
 
             {[
               ["VOICE ENGINE", listening ? "ON" : "OFF"],
-              ["VOICE REPLY", voiceReady ? "READY" : "LOCKED"],
+              ["VOICE MODE", voiceActive ? "ACTIVE" : "LOCKED"],
               ["AI API", backendStatus],
               ["NETWORK", networkStatus],
               ["SYSTEM", systemStatus],
             ].map(([name, value]) => (
               <div className="status-row" key={name}>
                 <p>{name}</p>
+
                 <b className={isBadStatus(value) ? "bad-status" : ""}>
                   {value}
                 </b>
+
                 <div className="bar">
                   <span
                     className={isBadStatus(value) ? "danger-bar" : ""}
-                    style={{ width: getStatusWidth(value) }}
-                  ></span>
+                    style={{
+                      width: getStatusWidth(value),
+                    }}
+                  />
                 </div>
               </div>
             ))}
 
             <div className="safe-status">
               <span></span>
+
               {backendStatus === "FAILED" || networkStatus === "OFFLINE"
                 ? " SYSTEM ISSUE DETECTED"
                 : " ALL SYSTEMS OPERATIONAL"}
@@ -1086,46 +1624,74 @@ export default function Dashboard() {
           </div>
         </aside>
 
+        {/* =================================================
+            CENTER
+        ================================================= */}
+
         <section className="center-stage">
           <div className="ai-orb-wrap">
             <div className="circuit-left"></div>
+
             <div className="circuit-right"></div>
+
             <div className="rings"></div>
+
             <div className="rings ring-two"></div>
+
             <div className="rings ring-three"></div>
 
             <div className="ai-orb">
               <div className="orb-mesh mesh-one"></div>
+
               <div className="orb-mesh mesh-two"></div>
+
               <div className="orb-mesh mesh-three"></div>
+
               <h2>NEXUS AI</h2>
             </div>
           </div>
 
+          {/* VOICE STATUS */}
+
           <div className="voice-active">
             <div className="equalizer">
-              {Array.from({ length: 14 }).map((_, i) => (
-                <span key={i}></span>
+              {Array.from({
+                length: 14,
+              }).map((_, index) => (
+                <span key={index} />
               ))}
             </div>
 
-            <p>VOICE ENGINE: {listening ? "LISTENING" : "ACTIVE"}</p>
+            <p>
+              VOICE ENGINE:{" "}
+              {voiceActive ? (listening ? "SHIFRA LISTENING" : "PROCESSING") : "OFF"}
+            </p>
 
             <div className="equalizer">
-              {Array.from({ length: 14 }).map((_, i) => (
-                <span key={i}></span>
+              {Array.from({
+                length: 14,
+              }).map((_, index) => (
+                <span key={index} />
               ))}
             </div>
           </div>
 
+          {/* MIC PANEL */}
+
           <div className="voice-panel glass-panel">
-            <h3>{input || "CLICK MIC AND ASK ANYTHING"}</h3>
+            <h3>
+              {input ||
+                (voiceActive
+                  ? "VOICE ACTIVE..."
+                  : "KARAN CLICK MIC AND ASK ANYTHING")}
+            </h3>
+
             <div className="wave wave-left"></div>
 
             <button
-              className="mic-btn"
+              className={`mic-btn ${voiceActive ? "mic-active" : ""}`}
               type="button"
-              onClick={listening || voiceReady ? stopVoice : activateVoice}
+              onClick={startVoice}
             >
               <FaMicrophone />
             </button>
@@ -1133,19 +1699,26 @@ export default function Dashboard() {
             <div className="wave wave-right"></div>
 
             <h4>
-              {listening
-                ? "LISTENING..."
-                : voiceReady
-                  ? "AUTO LISTENING MODE ON — CLICK TO STOP"
-                  : "CLICK MIC TO ASK"}
+              {voiceActive
+                ? listening
+                  ? "🎙️SHIFRA LISTENING — CLICK AGAIN TO STOP"
+                  : "🔊 PROCESSING — CLICK AGAIN TO STOP"
+                : "🎙️KARAN CLICK MIC TO START VOICE"}
             </h4>
           </div>
         </section>
 
+        {/* =================================================
+            RIGHT
+        ================================================= */}
+
         <aside className="right-side">
+          {/* CONSOLE */}
+
           <div className="glass-panel console-panel">
             <div className="panel-title">
               <h3>AI CONSOLE</h3>
+
               <button
                 className="clear-console-btn"
                 type="button"
@@ -1156,28 +1729,33 @@ export default function Dashboard() {
             </div>
 
             <div className="console-screen">
-              {messages.map((msg, index) => (
+              {messages.map((message, index) => (
                 <p
-                  key={`${safeText(msg, "msg")}-${index}`}
+                  key={`${index}-${safeText(message)}`}
                   className={index === 0 ? "version" : ""}
                 >
-                  {safeText(msg, "")}
+                  {safeText(message)}
                 </p>
               ))}
 
               <span className="cursor"></span>
-              <div ref={consoleEndRef}></div>
+
+              <div ref={consoleEndRef} />
             </div>
+
+            {/* INPUT */}
 
             <div className="console-input">
               <input
+                type="text"
                 placeholder="Type your message..."
-                value={input === "Listening..." ? "" : input}
+                value={input === "🎙️SHIFRA Listening..." ? "" : input}
                 disabled={sending}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
+                onChange={(event) => setInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+
                     handleSend();
                   }
                 }}
@@ -1185,7 +1763,7 @@ export default function Dashboard() {
 
               <button
                 type="button"
-                disabled={sending || !input.trim() || input === "Listening..."}
+                disabled={sending || !input.trim()}
                 onClick={() => handleSend()}
               >
                 <FaPaperPlane />
@@ -1193,8 +1771,11 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {/* QUICK COMMANDS */}
+
           <div className="glass-panel quick-panel">
             <h3>QUICK COMMANDS</h3>
+
             {quickCommands.map((item) => (
               <div
                 className="command-item"
@@ -1202,13 +1783,19 @@ export default function Dashboard() {
                 onClick={() => handleSend(item.text)}
               >
                 <span>{item.icon}</span>
+
                 <p>{item.text}</p>
+
                 <b>›</b>
               </div>
             ))}
           </div>
         </aside>
       </main>
+
+      {/* =================================================
+          CHAT MODAL
+      ================================================= */}
 
       {showChat && (
         <div className="chat-overlay">
@@ -1220,10 +1807,15 @@ export default function Dashboard() {
             >
               ✕
             </button>
+
             <Chat />
           </div>
         </div>
       )}
+
+      {/* =================================================
+          VOICE ASSISTANT
+      ================================================= */}
 
       {showVoice && (
         <div className="voice-overlay">
@@ -1235,10 +1827,15 @@ export default function Dashboard() {
             >
               ✕
             </button>
+
             <VoiceAssistant />
           </div>
         </div>
       )}
+
+      {/* =================================================
+          SYSTEM
+      ================================================= */}
 
       {showSystem && (
         <div className="system-overlay">
@@ -1250,10 +1847,15 @@ export default function Dashboard() {
             >
               ✕
             </button>
+
             <SystemControl />
           </div>
         </div>
       )}
+
+      {/* =================================================
+          FILE ANALYZER
+      ================================================= */}
 
       {showFileAnalyzer && (
         <div className="file-overlay">
@@ -1265,10 +1867,15 @@ export default function Dashboard() {
             >
               ✕
             </button>
+
             <FileAnalyzer />
           </div>
         </div>
       )}
+
+      {/* =================================================
+          ANALYTICS
+      ================================================= */}
 
       {showAnalytics && (
         <div className="analytics-overlay">
@@ -1280,10 +1887,15 @@ export default function Dashboard() {
             >
               ✕
             </button>
+
             <AIAnalytics />
           </div>
         </div>
       )}
+
+      {/* =================================================
+          SETTINGS
+      ================================================= */}
 
       {showSettings && (
         <div className="settings-overlay">
@@ -1295,6 +1907,7 @@ export default function Dashboard() {
             >
               ✕
             </button>
+
             <Settings />
           </div>
         </div>

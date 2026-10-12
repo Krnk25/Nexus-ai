@@ -1,5 +1,7 @@
+
 /* eslint-disable react-hooks/immutability */
-import { useEffect, useRef, useState } from "react";
+
+import { useCallback, useEffect, useRef, useState } from "react";
 import API from "../services/api";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -13,24 +15,58 @@ import {
 } from "../services/chatService";
 
 import { saveActivity } from "../services/activityService";
-
 import "../styles/chat.css";
 
+// Safely extract an array from different API response formats.
+function getArray(data, keys = []) {
+  if (Array.isArray(data)) return data;
+
+  for (const key of keys) {
+    if (Array.isArray(data?.[key])) {
+      return data[key];
+    }
+  }
+
+  return [];
+}
+
+// Extract a chat object from common response formats.
+function getChatObject(data) {
+  if (!data || typeof data !== "object") return null;
+
+  const chat = data.chat || data.data || data;
+
+  if (!chat || typeof chat !== "object" || Array.isArray(chat)) {
+    return null;
+  }
+
+  return chat._id || chat.id ? chat : null;
+}
+
+function getMessageArray(data) {
+  return getArray(data, ["messages", "data"]);
+}
+
 function CodeBlock({ children }) {
-  const code = String(children).replace(/\n$/, "");
+  const code = String(children ?? "").replace(/\n$/, "");
 
   const copyCode = async () => {
     try {
       await navigator.clipboard.writeText(code);
       alert("Code copied ✅");
-    } catch {
-      alert("Copy failed ❌");
+    } catch (error) {
+      console.error("Copy failed:", error);
+      alert("Code copy failed ❌");
     }
   };
 
   return (
     <div className="code-box">
-      <button className="copy-code-btn" onClick={copyCode}>
+      <button
+        type="button"
+        className="copy-code-btn"
+        onClick={copyCode}
+      >
         Copy
       </button>
 
@@ -48,222 +84,445 @@ export default function Chat() {
   const [input, setInput] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [chatsLoading, setChatsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const endRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const messagesRef = useRef([]);
+  const activeChatRef = useRef(null);
+
+  // Keep refs synchronized with current state.
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   useEffect(() => {
-    loadChats();
-  }, []);
+    activeChatRef.current = activeChat;
+  }, [activeChat]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, loading]);
 
-  const logActivity = async (type, title, description = "") => {
-    try {
-      await saveActivity(type, title, description);
-    } catch (error) {
-      console.log("Activity log failed:", error);
-    }
-  };
+  const logActivity = useCallback(
+    async (type, title, description = "") => {
+      try {
+        await saveActivity(type, title, description);
+      } catch (error) {
+        console.warn(
+          "Activity log failed:",
+          error.response?.data || error.message
+        );
+      }
+    },
+    []
+  );
 
-  const loadChats = async () => {
+  // Load chat history safely.
+  const loadChats = useCallback(async () => {
+    setChatsLoading(true);
+
     try {
       const res = await getChats();
-      setChats(res.data);
-    } catch (error) {
-      console.log("Load chats error:", error);
-    }
-  };
+      const data = res?.data;
 
+      console.log("📦 Chats API Response:", data);
+
+      const list = getArray(data, [
+        "chats",
+        "data",
+        "results",
+      ]);
+
+      setChats(list);
+      return list;
+    } catch (error) {
+      console.error(
+        "Load chats error:",
+        error.response?.data || error.message
+      );
+
+      setChats([]);
+      return [];
+    } finally {
+      setChatsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadChats();
+  }, [loadChats]);
+
+  // Create a new chat.
   const handleNewChat = async () => {
+    if (loading) return;
+
+    setErrorMessage("");
+
     try {
       const res = await createChat();
-      setActiveChat(res.data);
+      const chat = getChatObject(res?.data);
+
+      if (!chat) {
+        throw new Error(
+          "Backend did not return a valid chat. Check createChat API."
+        );
+      }
+
+      setActiveChat(chat);
+      activeChatRef.current = chat;
+
       setMessages([]);
+      messagesRef.current = [];
+
       setInput("");
       setSelectedFile(null);
+
       await loadChats();
 
-      await logActivity("Chat", "New Chat Created", "Started a new chat");
+      await logActivity(
+        "Chat",
+        "New Chat Created",
+        "Started a new chat"
+      );
     } catch (error) {
-      console.log("Create chat error:", error);
+      console.error(
+        "Create chat error:",
+        error.response?.data || error.message
+      );
+
+      setErrorMessage(
+        error.response?.data?.message ||
+          error.message ||
+          "Unable to create a new chat."
+      );
     }
   };
 
+  // Open an existing chat.
   const openChat = async (id) => {
+    if (!id || loading) return;
+
+    setErrorMessage("");
+
     try {
       const res = await getChat(id);
-      setActiveChat(res.data);
-      setMessages(res.data.messages || []);
+      const chat = getChatObject(res?.data);
+
+      if (!chat) {
+        throw new Error("Invalid chat response from backend.");
+      }
+
+      const chatMessages = getMessageArray(chat);
+
+      setActiveChat(chat);
+      activeChatRef.current = chat;
+
+      setMessages(chatMessages);
+      messagesRef.current = chatMessages;
+
       setInput("");
       setSelectedFile(null);
 
-      await logActivity("Chat", "Chat Opened", res.data?.title || "Opened chat");
+      await logActivity(
+        "Chat",
+        "Chat Opened",
+        chat.title || "Opened chat"
+      );
     } catch (error) {
-      console.log("Open chat error:", error);
+      console.error(
+        "Open chat error:",
+        error.response?.data || error.message
+      );
+
+      setErrorMessage(
+        error.response?.data?.message ||
+          error.message ||
+          "Unable to open this chat."
+      );
     }
   };
 
+  // Delete a chat.
   const handleDelete = async (id) => {
+    if (!id || loading) return;
+
+    const confirmed = window.confirm(
+      "Are you sure you want to delete this chat?"
+    );
+
+    if (!confirmed) return;
+
+    setErrorMessage("");
+
     try {
       await deleteChat(id);
 
-      if (activeChat?._id === id) {
+      const currentChat = activeChatRef.current;
+      const currentId = currentChat?._id || currentChat?.id;
+
+      if (String(currentId) === String(id)) {
         setActiveChat(null);
+        activeChatRef.current = null;
+
         setMessages([]);
+        messagesRef.current = [];
+
         setInput("");
         setSelectedFile(null);
       }
 
       await loadChats();
 
-      await logActivity("Chat", "Chat Deleted", `Deleted chat ID: ${id}`);
+      await logActivity(
+        "Chat",
+        "Chat Deleted",
+        `Deleted chat ID: ${id}`
+      );
     } catch (error) {
-      console.log("Delete chat error:", error);
+      console.error(
+        "Delete chat error:",
+        error.response?.data || error.message
+      );
+
+      setErrorMessage(
+        error.response?.data?.message ||
+          error.message ||
+          "Unable to delete chat."
+      );
     }
   };
 
+  // Upload the selected file and extract its text.
   const uploadSelectedFile = async () => {
     if (!selectedFile) return "";
 
     const formData = new FormData();
     formData.append("file", selectedFile);
 
-    const uploadRes = await API.post("/file/analyze", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
+    const response = await API.post(
+      "/file/analyze",
+      formData
+    );
 
-    if (!uploadRes.data?.text) {
-      throw new Error("File text not extracted");
+    const data = response?.data;
+
+    if (!data || typeof data.text !== "string") {
+      throw new Error(
+        data?.message || "File text could not be extracted."
+      );
     }
 
     await logActivity(
       "File",
       "File Uploaded In Chat",
-      uploadRes.data.filename || selectedFile.name
+      data.filename || selectedFile.name
     );
 
-    return `
-Uploaded File: ${uploadRes.data.filename}
-
-File Content:
-${uploadRes.data.text}
-`;
+    return {
+      filename: data.filename || selectedFile.name,
+      text: data.text,
+    };
   };
 
-  const buildHistory = () => {
-    return messages
-      .filter((msg) => msg?.content)
-      .slice(-10)
-      .map((msg) => ({
-        role: msg.role === "assistant" ? "assistant" : "user",
-        content: String(msg.content),
-      }));
-  };
-
+  // Send a message to Nexus AI.
   const handleSend = async () => {
-    if ((!input.trim() && !selectedFile) || loading) return;
+    const userText = input.trim();
+    const file = selectedFile;
 
-    let chat = activeChat;
+    if ((!userText && !file) || loading) return;
+
+    setLoading(true);
+    setErrorMessage("");
+
+    let chat = activeChatRef.current;
+    let userMessage = null;
 
     try {
+      // Automatically create a chat if none is selected.
       if (!chat) {
-        const newChat = await createChat();
-        chat = newChat.data;
-        setActiveChat(chat);
+        const newChatResponse = await createChat();
+        chat = getChatObject(newChatResponse?.data);
 
-        await logActivity("Chat", "New Chat Created", "Created chat automatically");
+        if (!chat) {
+          throw new Error(
+            "Unable to create a chat. Check backend response."
+          );
+        }
+
+        setActiveChat(chat);
+        activeChatRef.current = chat;
       }
 
-      setLoading(true);
+      const chatId = chat._id || chat.id;
 
-      const userText = input.trim();
-      const fileName = selectedFile?.name || "";
+      if (!chatId) {
+        throw new Error("Chat ID is missing.");
+      }
 
       let fileContext = "";
 
-      if (selectedFile) {
-        fileContext = await uploadSelectedFile();
+      if (file) {
+        const uploaded = await uploadSelectedFile();
+
+        fileContext =
+          `\n\nUploaded File: ${uploaded.filename}\n\n` +
+          `File Content:\n${uploaded.text}`;
       }
 
-      const userMessage = {
+      const finalMessage =
+        (userText || "Analyze this file") + fileContext;
+
+      userMessage = {
         role: "user",
-        content: fileContext
-          ? `${userText || "Analyze this file"}\n\n📎 Uploaded: ${fileName}\n\n${fileContext}`
+        content: file
+          ? `${userText || "Analyze this file"}\n\n` +
+            `📎 Uploaded: ${file.name}\n\n${fileContext}`
           : userText,
       };
 
-      const finalMessage = fileContext
-        ? `
-User Question:
-${userText || "Analyze this file"}
+      // Display immediately.
+      const previousMessages = messagesRef.current;
+      const updatedMessages = [
+        ...previousMessages,
+        userMessage,
+      ];
 
-${fileContext}
-`
-        : userText;
+      messagesRef.current = updatedMessages;
+      setMessages(updatedMessages);
 
       setInput("");
       setSelectedFile(null);
 
-      setMessages((prev) => [...prev, userMessage]);
-      await saveMessage(chat._id, userMessage);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+
+      // Save user message.
+      await saveMessage(chatId, userMessage);
 
       await logActivity(
-        fileContext ? "File" : "Chat",
-        fileContext ? "File Chat Message" : "AI Chat Message",
-        fileContext ? fileName : userText
+        file ? "File" : "Chat",
+        file ? "File Chat Message" : "AI Chat Message",
+        file ? file.name : userText
       );
 
-      const historyForAI = buildHistory();
+      // Send conversation history to AI.
+      const history = previousMessages
+        .filter(
+          (message) =>
+            message?.content &&
+            ["user", "assistant"].includes(message.role)
+        )
+        .slice(-10)
+        .map((message) => ({
+          role: message.role,
+          content: String(message.content),
+        }));
 
-      historyForAI.push({
+      history.push({
         role: "user",
         content: finalMessage,
       });
 
-      const savedSettings = JSON.parse(
-        localStorage.getItem("nexus_settings") || "{}"
-      );
+      let savedSettings = {};
 
-      const aiRes = await API.post("/ai/chat", {
+      try {
+        savedSettings = JSON.parse(
+          localStorage.getItem("nexus_settings") || "{}"
+        );
+      } catch {
+        savedSettings = {};
+      }
+
+      const aiResponse = await API.post("/ai/chat", {
         message: finalMessage,
-        history: historyForAI,
+        history,
         settings: savedSettings,
       });
 
+      const reply =
+        typeof aiResponse?.data?.reply === "string"
+          ? aiResponse.data.reply
+          : typeof aiResponse?.data?.message === "string"
+          ? aiResponse.data.message
+          : "";
+
+      if (!reply) {
+        throw new Error(
+          aiResponse?.data?.error ||
+            "AI returned an empty response."
+        );
+      }
+
       const aiMessage = {
         role: "assistant",
-        content: aiRes.data.reply || "No response received.",
+        content: reply,
       };
 
-      setMessages((prev) => [...prev, aiMessage]);
-      await saveMessage(chat._id, aiMessage);
+      const finalMessages = [
+        ...messagesRef.current,
+        aiMessage,
+      ];
 
-      await logActivity("Chat", "AI Reply Received", aiMessage.content.slice(0, 120));
+      messagesRef.current = finalMessages;
+      setMessages(finalMessages);
+
+      // Save assistant reply.
+      await saveMessage(chatId, aiMessage);
+
+      await logActivity(
+        "Chat",
+        "AI Reply Received",
+        reply.slice(0, 120)
+      );
 
       await loadChats();
     } catch (error) {
-      console.log("Send message error:", error);
+      console.error(
+        "Send message error:",
+        error.response?.data || error.message
+      );
 
-      const errorMessage = {
+      const message =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        error.message ||
+        "Message failed. Check the backend.";
+
+      setErrorMessage(message);
+
+      // Show an error in the conversation.
+      const errorReply = {
         role: "assistant",
-        content:
-          error.response?.data?.message ||
-          error.message ||
-          "Message save/API failed. Check backend console.",
+        content: `⚠️ ${message}`,
       };
 
-      setMessages((prev) => [...prev, errorMessage]);
+      const updatedMessages = [
+        ...messagesRef.current,
+        errorReply,
+      ];
 
-      await logActivity("Chat", "Chat Error", errorMessage.content);
+      messagesRef.current = updatedMessages;
+      setMessages(updatedMessages);
+
+      await logActivity("Chat", "Chat Error", message);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleKeyDown = (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      handleSend();
+    }
+  };
+
+  
+
+      
   return (
     <div className="chat-page">
       <aside className="chat-sidebar">

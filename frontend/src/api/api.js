@@ -1,25 +1,40 @@
+import axios from "axios";
+
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://nexus-ai-backend-1bpy.onrender.com/api";
 
-export const sendAIMessage = async (message) => {
-  try {
-    const res = await fetch(`${API_BASE_URL}/api/ai/chat`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ message }),
-    });
+const API = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  },
+  timeout: 120000,
+});
 
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data.message || "AI request failed");
+export const sendAIMessage = async (
+  message,
+  history = [],
+  personalData = {}
+) => {
+  const response = await API.post(
+    "/ai/chat",
+    {
+      message,
+      history,
+      personalData,
     }
+  );
 
-    return data;
-  } catch (error) {
-    console.error("API Error:", error);
-    throw error;
-  }
+  return response.data;
 };
+
+export const getProfile = async () => {
+  const response =
+    await API.get("/profile");
+
+  return response.data;
+};
+
+export default API;

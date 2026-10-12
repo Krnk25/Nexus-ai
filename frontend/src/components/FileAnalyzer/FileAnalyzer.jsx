@@ -124,13 +124,19 @@ ${fileText}
         localStorage.getItem("nexus_settings") || "{}"
       );
 
-      const aiRes = await API.post("/ai/file-analyze", {
-        message: aiPrompt,
-        settings: savedSettings,
-      });
+     const aiRes = await API.post("/ai/chat", {
+  message: aiPrompt,
+  settings: savedSettings,
+});
 
-      const finalResult = aiRes.data.reply || "AI analysis failed.";
-      setResult(finalResult);
+const finalResult =
+  aiRes.data?.reply ||
+  aiRes.data?.message ||
+  "AI analysis failed.";
+
+setResult(finalResult);
+
+     
 
       await logActivity(
         "File",
