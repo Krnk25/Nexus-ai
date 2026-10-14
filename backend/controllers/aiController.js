@@ -1,8 +1,6 @@
-
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import Memory from "../models/Memory.js";
 import Settings from "../models/Settings.js";
-
 
 // ======================================================
 // GEMINI CLIENT
@@ -16,7 +14,7 @@ const getAIModel = () =>
   process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
 // ======================================================
-// PROFILE FIELDS
+// PROFILE FIELDS AND ALIASES
 // ======================================================
 
 const PROFILE_FIELDS = [
@@ -38,65 +36,19 @@ const PROFILE_FIELDS = [
   "sister",
 ];
 
-// Each field supports different memory key names.
 const PROFILE_ALIASES = {
-  name: [
-    "name",
-    "my name",
-    "mera naam",
-    "mera name",
-    "naam",
-  ],
-  email: [
-    "email",
-    "email address",
-  ],
-  mobile: [
-    "mobile",
-    "phone",
-    "phone number",
-    "mobile number",
-  ],
-  education: [
-    "education",
-    "qualification",
-  ],
-  college: [
-    "college",
-    "college name",
-  ],
-  skills: [
-    "skills",
-    "my skills",
-  ],
-  github: [
-    "github",
-    "github link",
-  ],
-  linkedin: [
-    "linkedin",
-    "linkedin link",
-  ],
-  portfolio: [
-    "portfolio",
-    "portfolio link",
-  ],
-  location: [
-    "location",
-    "city",
-    "address",
-  ],
-  village: [
-    "village",
-    "my village",
-    "gaon",
-    "mera gaon",
-  ],
-  bio: [
-    "bio",
-    "about me",
-    "about",
-  ],
+  name: ["name", "my name", "mera naam", "mera name", "naam"],
+  email: ["email", "email address"],
+  mobile: ["mobile", "phone", "phone number", "mobile number"],
+  education: ["education", "qualification"],
+  college: ["college", "college name"],
+  skills: ["skills", "my skills"],
+  github: ["github", "github link"],
+  linkedin: ["linkedin", "linkedin link"],
+  portfolio: ["portfolio", "portfolio link"],
+  location: ["location", "city", "address"],
+  village: ["village", "my village", "gaon", "mera gaon"],
+  bio: ["bio", "about me", "about"],
   fatherName: [
     "fatherName",
     "father name",
@@ -121,17 +73,8 @@ const PROFILE_ALIASES = {
     "brothers",
     "bhai",
   ],
-  sister: [
-    "sister",
-    "sisterName",
-    "sister name",
-    "behen",
-  ],
+  sister: ["sister", "sisterName", "sister name", "behen"],
 };
-
-// ======================================================
-// NORMALIZE MEMORY KEYS
-// ======================================================
 
 const normalizeKey = (key = "") =>
   String(key)
@@ -140,49 +83,39 @@ const normalizeKey = (key = "") =>
     .replace(/[^\p{L}\p{N}]/gu, "");
 
 // ======================================================
-// GET PROFILE FROM EXISTING MEMORIES COLLECTION
+// GET PROFILE FROM MONGODB
 // ======================================================
 
 const getUserProfile = async () => {
   try {
     const memories = await Memory.find()
-      .sort({
-        updatedAt: -1,
-        createdAt: -1,
-      })
+      .sort({ updatedAt: -1, createdAt: -1 })
       .lean();
 
-    const profile = {};
+    const profile = Object.fromEntries(
+      PROFILE_FIELDS.map((field) => [field, ""])
+    );
 
-    for (const field of PROFILE_FIELDS) {
-      profile[field] = "";
-    }
-
-    // Newest memory for an equivalent key wins.
     const memoryMap = new Map();
 
     for (const memory of memories) {
       const key = normalizeKey(memory.key);
 
-      if (!key || memory.value == null) {
-        continue;
-      }
+      if (!key || memory.value == null) continue;
 
       if (!memoryMap.has(key)) {
         memoryMap.set(key, memory.value);
       }
     }
 
-    // Support memories saved as individual key/value records.
+    // Read individual memory records.
     for (const field of PROFILE_FIELDS) {
       const aliases = PROFILE_ALIASES[field] || [field];
 
       for (const alias of aliases) {
         const key = normalizeKey(alias);
 
-        if (!memoryMap.has(key)) {
-          continue;
-        }
+        if (!memoryMap.has(key)) continue;
 
         const value = memoryMap.get(key);
 
@@ -193,7 +126,7 @@ const getUserProfile = async () => {
       }
     }
 
-    // Also support a memory containing the complete profile as JSON.
+    // Read a complete profile stored as JSON.
     const bundleKeys = [
       "profile",
       "personalprofile",
@@ -203,9 +136,7 @@ const getUserProfile = async () => {
     ];
 
     for (const bundleKey of bundleKeys) {
-      if (!memoryMap.has(bundleKey)) {
-        continue;
-      }
+      if (!memoryMap.has(bundleKey)) continue;
 
       try {
         const bundle = JSON.parse(
@@ -221,9 +152,7 @@ const getUserProfile = async () => {
         }
 
         for (const field of PROFILE_FIELDS) {
-          if (profile[field]) {
-            continue;
-          }
+          if (profile[field]) continue;
 
           const acceptedKeys = [
             field,
@@ -246,11 +175,11 @@ const getUserProfile = async () => {
           }
         }
       } catch {
-        // Ignore memories that are not JSON.
+        // Ignore invalid JSON memories.
       }
     }
 
-    console.log("✅ Profile loaded from MongoDB memories:", {
+    console.log("Profile loaded from MongoDB memories:", {
       memoryCount: memories.length,
       nameAvailable: Boolean(profile.name),
       villageAvailable: Boolean(profile.village),
@@ -262,17 +191,13 @@ const getUserProfile = async () => {
 
     return profile;
   } catch (error) {
-    console.error(
-      "❌ PROFILE MEMORY FETCH ERROR:",
-      error.message
-    );
-
+    console.error("PROFILE MEMORY FETCH ERROR:", error.message);
     return {};
   }
 };
 
 // ======================================================
-// CLEAN PROFILE VALUES
+// CLEAN AND MERGE PROFILE
 // ======================================================
 
 const cleanProfile = (profile = {}) => {
@@ -298,30 +223,23 @@ const cleanProfile = (profile = {}) => {
   return cleaned;
 };
 
-// ======================================================
-// MERGE DATABASE AND FRONTEND PROFILE
-// Non-empty database values have priority.
-// ======================================================
-
 const mergeProfiles = (
   dbProfile = {},
   frontendProfile = {}
 ) => {
   const db = cleanProfile(dbProfile);
   const frontend = cleanProfile(frontendProfile);
-
   const merged = {};
 
   for (const field of PROFILE_FIELDS) {
-    merged[field] =
-      db[field] || frontend[field] || "";
+    merged[field] = db[field] || frontend[field] || "";
   }
 
   return merged;
 };
 
 // ======================================================
-// CURRENT DATE AND TIME
+// CURRENT DATE AND TIME — INDIA
 // ======================================================
 
 const getCurrentDateDetails = (locale = "en-IN") => {
@@ -356,41 +274,15 @@ const detectLanguage = (text = "") => {
   const lower = text.toLowerCase();
 
   const marathiWords = [
-    "काय",
-    "कसे",
-    "कशी",
-    "आहे",
-    "मला",
-    "तुम्ही",
-    "माझे",
-    "माझा",
-    "माझं",
-    "माझी",
-    "सांग",
-    "किती",
-    "कोण",
-    "कुठे",
-    "आजची",
-    "नाव",
+    "काय", "कसे", "कशी", "आहे", "मला", "तुम्ही",
+    "माझे", "माझा", "माझं", "माझी", "सांग",
+    "किती", "कोण", "कुठे", "आजची", "नाव",
   ];
 
   const hindiWords = [
-    "क्या",
-    "कैसे",
-    "कैसी",
-    "है",
-    "हूँ",
-    "मुझे",
-    "मेरा",
-    "मेरी",
-    "मेरे",
-    "आप",
-    "तुम",
-    "बताओ",
-    "कितना",
-    "कौन",
-    "कहाँ",
-    "आज",
+    "क्या", "कैसे", "कैसी", "है", "हूँ", "मुझे",
+    "मेरा", "मेरी", "मेरे", "आप", "तुम", "बताओ",
+    "कितना", "कौन", "कहाँ", "आज",
   ];
 
   if (/[\u0900-\u097F]/.test(text)) {
@@ -402,25 +294,10 @@ const detectLanguage = (text = "") => {
   }
 
   const hinglishWords = [
-    "mera",
-    "meri",
-    "mere",
-    "mujhe",
-    "kya",
-    "kaise",
-    "kaisi",
-    "hai",
-    "hain",
-    "batao",
-    "naam",
-    "gaon",
-    "papa",
-    "maa",
-    "behen",
-    "bhai",
-    "kitna",
-    "kaun",
-    "kahan",
+    "mera", "meri", "mere", "mujhe", "kya",
+    "kaise", "kaisi", "hai", "hain", "batao",
+    "naam", "gaon", "papa", "maa", "behen",
+    "bhai", "kitna", "kaun", "kahan",
   ];
 
   if (
@@ -439,7 +316,7 @@ const detectLanguage = (text = "") => {
 };
 
 // ======================================================
-// TIME QUESTION
+// DATE AND TIME QUESTION DETECTION
 // ======================================================
 
 const isTimeQuestion = (text = "") => {
@@ -457,10 +334,6 @@ const isTimeQuestion = (text = "") => {
     "आत्ता किती वाजले",
   ].some((item) => value.includes(item));
 };
-
-// ======================================================
-// DATE QUESTION
-// ======================================================
 
 const isDateQuestion = (text = "") => {
   const value = text.toLowerCase();
@@ -484,8 +357,7 @@ const buildSystemPrompt = ({
   profile,
   language,
   dateDetails,
-}) => {
-  return `
+}) => `
 You are Shifra, the AI virtual assistant inside NEXUS-AI.
 
 PERSONALITY:
@@ -496,7 +368,6 @@ PERSONALITY:
 
 LANGUAGE:
 Detected language: ${language}
-
 Reply in the same language and style used by the user.
 - English questions: answer in English.
 - Hindi or Hinglish questions: answer in Hindi/Hinglish.
@@ -545,16 +416,13 @@ CONVERSATION:
 - Answer the user's actual question directly.
 - Avoid unnecessarily repeating the question.
 `;
-};
 
 // ======================================================
 // FORMAT CHAT HISTORY
 // ======================================================
 
 const formatHistory = (history = []) => {
-  if (!Array.isArray(history)) {
-    return [];
-  }
+  if (!Array.isArray(history)) return [];
 
   return history
     .filter(
@@ -565,23 +433,16 @@ const formatHistory = (history = []) => {
     )
     .map((item) => ({
       role:
-        item.role === "assistant" ||
-        item.role === "model"
+        item.role === "assistant" || item.role === "model"
           ? "model"
           : "user",
-
-      parts: [
-        {
-          text: item.content.trim(),
-        },
-      ],
+      parts: [{ text: item.content.trim() }],
     }))
     .slice(-20);
 };
 
 // ======================================================
 // CHAT WITH AI
-// Used by Chat and Voice Assistant
 // ======================================================
 
 export const chatWithAI = async (req, res) => {
@@ -593,24 +454,17 @@ export const chatWithAI = async (req, res) => {
       profile: incomingProfile = {},
     } = req.body || {};
 
-    // Validate message
-    if (
-      typeof message !== "string" ||
-      !message.trim()
-    ) {
+    if (typeof message !== "string" || !message.trim()) {
       return res.status(400).json({
         success: false,
         message: "Message is required.",
       });
     }
 
-  
-
     const userMessage = message.trim();
 
-    // Check API key
     if (!process.env.GEMINI_API_KEY) {
-      console.error("❌ GEMINI_API_KEY is missing.");
+      console.error("GEMINI_API_KEY is missing.");
 
       return res.status(503).json({
         success: false,
@@ -619,13 +473,9 @@ export const chatWithAI = async (req, res) => {
     }
 
     const language = detectLanguage(userMessage);
-
-    const dateDetails =
-      getCurrentDateDetails(language);
-
+    const dateDetails = getCurrentDateDetails(language);
     const modelName = getAIModel();
 
-    // Get saved information from the memories collection
     const dbProfile = await getUserProfile();
 
     const receivedFrontendProfile =
@@ -635,24 +485,18 @@ export const chatWithAI = async (req, res) => {
         ? personalData
         : incomingProfile;
 
-    // Prefer non-empty database values over frontend values
-    const profile = mergeProfiles(
+    const userProfile = mergeProfiles(
       dbProfile,
       receivedFrontendProfile
     );
 
-    console.log("👤 PROFILE SENT TO AI:", {
-      nameAvailable: Boolean(profile.name),
-      villageAvailable: Boolean(profile.village),
-      fatherAvailable: Boolean(profile.fatherName),
-      motherAvailable: Boolean(profile.motherName),
-      brotherAvailable: Boolean(profile.brotherName),
-      sisterAvailable: Boolean(profile.sister),
-      educationAvailable: Boolean(profile.education),
-      collegeAvailable: Boolean(profile.college),
+    console.log("PROFILE SENT TO AI:", {
+      nameAvailable: Boolean(userProfile.name),
+      villageAvailable: Boolean(userProfile.village),
+      educationAvailable: Boolean(userProfile.education),
     });
 
-    // Handle time questions
+    // Handle time questions directly.
     if (isTimeQuestion(userMessage)) {
       let reply;
 
@@ -664,7 +508,6 @@ export const chatWithAI = async (req, res) => {
         reply = `The current time is ${dateDetails.time}.`;
       }
 
-    
       return res.status(200).json({
         success: true,
         reply,
@@ -673,7 +516,7 @@ export const chatWithAI = async (req, res) => {
       });
     }
 
-    // Handle date questions
+    // Handle date questions directly.
     if (isDateQuestion(userMessage)) {
       let reply;
 
@@ -693,9 +536,8 @@ export const chatWithAI = async (req, res) => {
       });
     }
 
-    // Build the AI system prompt
     const systemPrompt = buildSystemPrompt({
-      profile,
+      profile: userProfile,
       language,
       dateDetails,
     });
@@ -708,72 +550,72 @@ export const chatWithAI = async (req, res) => {
     });
 
     console.log("=================================");
-    console.log("🤖 NEXUS AI CHAT REQUEST");
+    console.log("NEXUS AI CHAT REQUEST");
     console.log("Model:", modelName);
     console.log("Language:", language);
     console.log("History messages:", formattedHistory.length);
     console.log("User message:", userMessage);
-    console.log("Profile name available:", Boolean(profile.name));
-    console.log("Profile village available:", Boolean(profile.village));
     console.log("=================================");
 
-    const chat = model.startChat({
-      history: formattedHistory,
-      generationConfig: {
-        maxOutputTokens: 1200,
-        temperature: 0.4,
-      },
-    });
+   // CHAT WITH AI
+   
+const chat = model.startChat({
+  history: formattedHistory,
+  generationConfig: {
+    maxOutputTokens: 1200,
+    temperature: 0.4,
+  },
+});
 
-const reply = result.response.text();
-await saveAutomaticMemory(userMessage);
+const geminiResult = await chat.sendMessage(userMessage);
 
-    if (!reply || !reply.trim()) {
-      return res.status(502).json({
-        success: false,
-        message: "AI returned an empty response.",
-      });
-    }
+const reply = geminiResult?.response?.text?.() || "";
 
-    console.log("✅ AI RESPONSE:", reply);
+if (!reply.trim()) {
+  throw new Error("Gemini returned an empty response");
+}
 
-    return res.status(200).json({
-      success: true,
-      reply: reply.trim(),
-      model: modelName,
-      language,
-    });
+saveAutomaticMemory(userMessage).catch((error) => {
+  console.error("AUTO MEMORY ERROR:", error.message);
+});
+
+console.log("NEXUS AI RESPONSE:", reply);
+
+return res.status(200).json({
+  success: true,
+  reply: reply.trim(),
+  model: modelName,
+  language,
+});
   } catch (error) {
-    console.error("❌ CHAT AI ERROR:", error);
+    console.error("CHAT AI ERROR:", error);
 
     const status = Number(error?.status) || 503;
-
-    let message =
-      "AI service is temporarily unavailable.";
+    let errorMessage = "AI service is temporarily unavailable.";
 
     if (status === 400) {
-      message = "Invalid AI request.";
+      errorMessage = "Invalid AI request.";
     } else if (status === 401 || status === 403) {
-      message = "AI API key is invalid or unauthorized.";
+      errorMessage = "Gemini API key is invalid or unauthorized.";
     } else if (status === 404) {
-      message = "AI model was not found or is unavailable.";
+      errorMessage = "AI model was not found or is unavailable.";
     } else if (status === 429) {
-      message =
+      errorMessage =
         "AI rate limit or quota reached. Please try again later.";
     } else if (status >= 500) {
-      message = "AI server error. Please try again.";
+      errorMessage = "AI server error. Please try again.";
     }
 
-    return res.status(
-      status >= 400 && status < 600 ? status : 503
-    ).json({
-      success: false,
-      message,
-      error: {
-        status,
-        code: error?.code || null,
-      },
-    });
+    return res
+      .status(status >= 400 && status < 600 ? status : 503)
+      .json({
+        success: false,
+        message: errorMessage,
+        error: {
+          status,
+          code: error?.code || null,
+        },
+      });
   }
 };
 
@@ -788,10 +630,7 @@ export const analyzeWithAI = async (req, res) => {
       question = "",
     } = req.body || {};
 
-    if (
-      typeof text !== "string" ||
-      !text.trim()
-    ) {
+    if (typeof text !== "string" || !text.trim()) {
       return res.status(400).json({
         success: false,
         message: "File text is required.",
@@ -806,11 +645,8 @@ export const analyzeWithAI = async (req, res) => {
     }
 
     const modelName = getAIModel();
-
-    // Use the same memories collection for profile information
     const dbProfile = await getUserProfile();
     const profile = cleanProfile(dbProfile);
-
     const dateDetails = getCurrentDateDetails();
 
     const model = genAI.getGenerativeModel({
@@ -837,11 +673,9 @@ Do not guess empty profile fields.
 
     const userInput = `
 DOCUMENT:
-
 ${documentText}
 
 USER QUESTION:
-
 ${question || "Summarize and analyze this document."}
 `;
 
@@ -861,7 +695,7 @@ ${question || "Summarize and analyze this document."}
       model: modelName,
     });
   } catch (error) {
-    console.error("❌ FILE ANALYSIS ERROR:", error);
+    console.error("FILE ANALYSIS ERROR:", error);
 
     return res.status(503).json({
       success: false,
@@ -871,12 +705,14 @@ ${question || "Summarize and analyze this document."}
   }
 };
 
+// ======================================================
+// AUTOMATIC MEMORY
+// ======================================================
 
 const DEFAULT_USER_ID = "default-user";
 
 export const saveAutomaticMemory = async (userMessage) => {
   try {
-    // Settings check
     const settings = await Settings.findOne({
       userId: DEFAULT_USER_ID,
     }).lean();
@@ -886,11 +722,13 @@ export const saveAutomaticMemory = async (userMessage) => {
       return;
     }
 
-    if (typeof userMessage !== "string" || !userMessage.trim()) {
+    if (
+      typeof userMessage !== "string" ||
+      !userMessage.trim()
+    ) {
       return;
     }
 
-    // Explicit, useful, long-term facts only
     const model = genAI.getGenerativeModel({
       model: getAIModel(),
       generationConfig: {
@@ -963,7 +801,6 @@ ${JSON.stringify(userMessage)}
 
     console.log("Auto memory processed successfully.");
   } catch (error) {
-    // Memory failure should not break the normal AI reply.
     console.error("AUTO MEMORY ERROR:", error.message);
   }
 };
