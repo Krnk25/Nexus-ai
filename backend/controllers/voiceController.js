@@ -1,43 +1,27 @@
+
 import fs from "fs";
 import "../config/env.js";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// ======================================================
-// GEMINI CLIENT
-// ======================================================
-
 const genAI = new GoogleGenerativeAI(
-  process.env.GEMINI_API_KEY
+  process.env.GEMINI_API_KEY || ""
 );
 
-const getAIModel = () => {
-  return genAI.getGenerativeModel({
+const getAIModel = () =>
+  genAI.getGenerativeModel({
     model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
   });
-};
-
-// ======================================================
-// VOICE TRANSCRIPTION
-// ======================================================
 
 export const transcribeVoice = async (req, res) => {
   let filePath = null;
 
   try {
-    // --------------------------------------------------
-    // CHECK GEMINI API KEY
-    // --------------------------------------------------
-
     if (!process.env.GEMINI_API_KEY) {
       return res.status(500).json({
         success: false,
         message: "GEMINI_API_KEY missing hai.",
       });
     }
-
-    // --------------------------------------------------
-    // CHECK AUDIO FILE
-    // --------------------------------------------------
 
     if (!req.file) {
       return res.status(400).json({
@@ -48,100 +32,70 @@ export const transcribeVoice = async (req, res) => {
 
     filePath = req.file.path;
 
-    console.log("=================================");
-    console.log("🎙️ VOICE TRANSCRIPTION");
-    console.log("=================================");
-    console.log("File:", req.file.originalname);
-    console.log("Type:", req.file.mimetype);
-    console.log("Size:", req.file.size);
+    console.log("🎙️ Voice transcription started");
+    console.log("Audio type:", req.file.mimetype);
+    console.log("Audio size:", req.file.size);
 
-    // --------------------------------------------------
-    // READ AUDIO FILE
-    // --------------------------------------------------
+    const mimeType = (
+      req.file.mimetype || "audio/webm"
+    ).split(";")[0];
 
     const audioData = fs
       .readFileSync(filePath)
       .toString("base64");
 
-    // --------------------------------------------------
-    // GEMINI MODEL
-    // --------------------------------------------------
-
     const model = getAIModel();
-
-    // --------------------------------------------------
-    // SEND AUDIO TO GEMINI
-    // --------------------------------------------------
 
     const result = await model.generateContent([
       {
         inlineData: {
-          mimeType: req.file.mimetype || "audio/webm",
+          mimeType,
           data: audioData,
         },
       },
       {
         text: `
-Transcribe this audio exactly.
+Transcribe the provided audio accurately.
 
 Rules:
-1. Return only the spoken text.
-2. Do not explain anything.
-3. Do not add quotation marks.
-4. Support Hindi, English and Marathi.
-5. Preserve the spoken language.
+1. Support Hindi, Marathi and English.
+2. Preserve the spoken language.
+3. Return only the words spoken.
+4. Do not add explanations.
+5. Do not translate the speech.
+6. If speech is unclear, return the understandable words only.
         `,
       },
     ]);
 
-    // --------------------------------------------------
-    // GET TEXT
-    // --------------------------------------------------
-
-    const text =
-      result?.response?.text()?.trim() || "";
+    const text = result.response.text().trim();
 
     if (!text) {
       return res.status(422).json({
         success: false,
-        message: "Voice samajh nahi aayi.",
+        message: "Voice samajh nahi aayi. Dobara bolo.",
       });
     }
 
     console.log("📝 Transcribed:", text);
-
-    // --------------------------------------------------
-    // SUCCESS
-    // --------------------------------------------------
 
     return res.status(200).json({
       success: true,
       text,
     });
   } catch (error) {
-    console.error("❌ VOICE TRANSCRIBE ERROR:");
-    console.error(error);
+    console.error("❌ Voice transcription failed:", error);
 
     return res.status(500).json({
       success: false,
-      message:
-        error?.message ||
-        "Voice transcription failed.",
+      message: error.message || "Voice transcription failed.",
     });
   } finally {
-    // --------------------------------------------------
-    // DELETE TEMP AUDIO
-    // --------------------------------------------------
-
     if (filePath && fs.existsSync(filePath)) {
       try {
         fs.unlinkSync(filePath);
-        console.log("🗑️ Temporary audio file deleted.");
-      } catch (deleteError) {
-        console.error(
-          "⚠️ Audio delete failed:",
-          deleteError.message
-        );
+      } catch (error) {
+        console.error("Temporary audio cleanup failed:", error.message);
       }
     }
   }

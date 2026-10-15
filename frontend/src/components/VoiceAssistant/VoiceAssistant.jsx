@@ -5,13 +5,15 @@ import MyAssistant from "../../assets/images/my_assitancee.png";
 import API from "../../services/api";
 import SystemAPI from "../../services/systemApi";
 
-import {
-  createSpeechRecognition,
-  getSavedVoiceSettings,
-  requestMicPermission,
-} from "../../services/voiceService";
+import { getSavedVoiceSettings } from "../../services/voiceService";
 
 import "./VoiceAssistant.css";
+
+// ========================================================
+// CONFIGURATION
+// ========================================================
+
+const RECORDING_INTERVAL = 5000;
 
 // ========================================================
 // PROFILE QUESTIONS
@@ -140,10 +142,7 @@ function getTextValue(value) {
   if (value == null) return "";
 
   if (Array.isArray(value)) {
-    return value
-      .map(getTextValue)
-      .filter(Boolean)
-      .join(", ");
+    return value.map(getTextValue).filter(Boolean).join(", ");
   }
 
   if (typeof value === "object") return "";
@@ -154,7 +153,6 @@ function getTextValue(value) {
 function findProfileIntent(message) {
   const question = normalizeQuestion(message);
 
-  // More specific phrases should be checked first.
   return [...PROFILE_INTENTS]
     .sort(
       (a, b) =>
@@ -175,9 +173,7 @@ function getProfileValue(profile, field) {
     location: ["location", "address"],
   };
 
-  const keys = aliases[field] || [field];
-
-  for (const key of keys) {
+  for (const key of aliases[field] || [field]) {
     const value = getTextValue(profile?.[key]);
     if (value) return value;
   }
@@ -186,7 +182,7 @@ function getProfileValue(profile, field) {
 }
 
 // ========================================================
-// FEMALE-SOUNDING VOICE SELECTION
+// VOICE SELECTION
 // ========================================================
 
 const FEMALE_VOICE_KEYWORDS = [
@@ -207,10 +203,10 @@ function selectPreferredVoice(voices, language) {
   const lang = String(language || "en-IN").toLowerCase();
   const baseLang = lang.split("-")[0];
 
-  const matchesLanguage = (voice) =>
+  const exactLanguage = (voice) =>
     voice.lang.toLowerCase() === lang;
 
-  const matchesBaseLanguage = (voice) =>
+  const baseLanguage = (voice) =>
     voice.lang.toLowerCase().startsWith(baseLang);
 
   const soundsFemale = (voice) => {
@@ -222,16 +218,10 @@ function selectPreferredVoice(voices, language) {
   };
 
   return (
-    voices.find(
-      (voice) =>
-        matchesLanguage(voice) && soundsFemale(voice)
-    ) ||
-    voices.find(
-      (voice) =>
-        matchesBaseLanguage(voice) && soundsFemale(voice)
-    ) ||
-    voices.find(matchesLanguage) ||
-    voices.find(matchesBaseLanguage) ||
+    voices.find((v) => exactLanguage(v) && soundsFemale(v)) ||
+    voices.find((v) => baseLanguage(v) && soundsFemale(v)) ||
+    voices.find(exactLanguage) ||
+    voices.find(baseLanguage) ||
     voices[0]
   );
 }
@@ -247,8 +237,9 @@ function VoiceAssistant() {
     "Click Start Voice to activate Shifra."
   );
 
-  const recognitionRef = useRef(null);
-  const restartTimerRef = useRef(null);
+  const streamRef = useRef(null);
+  const recorderRef = useRef(null);
+  const timerRef = useRef(null);
   const mountedRef = useRef(false);
 
   const shouldListenRef = useRef(false);
@@ -256,73 +247,80 @@ function VoiceAssistant() {
   const speakingRef = useRef(false);
   const processingRef = useRef(false);
   const startingRef = useRef(false);
+  const discardRef = useRef(false);
+  const chunksRef = useRef([]);
 
   const speechIdRef = useRef(0);
 
-  const startRecognitionRef = useRef(null);
+  const startRecordingRef = useRef(null);
   const handleCommandRef = useRef(null);
   const sendToAIRef = useRef(null);
 
   // ======================================================
-  // TIMER
+  // TIMER HELPERS
   // ======================================================
 
-  const clearRestartTimer = useCallback(() => {
-    if (restartTimerRef.current !== null) {
-      clearTimeout(restartTimerRef.current);
-      restartTimerRef.current = null;
+  const clearTimer = useCallback(() => {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
     }
   }, []);
 
-  // ======================================================
-  // STOP SPEECH RECOGNITION
-  // ======================================================
-
-  const stopRecognition = useCallback(() => {
-    clearRestartTimer();
-
-    listeningRef.current = false;
-    setListening(false);
-
-    try {
-      recognitionRef.current?.stop();
-    } catch {
-      // Recognition may already have stopped.
-    }
-  }, [clearRestartTimer]);
-
-  // ======================================================
-  // RESTART LISTENING AFTER SPEAKING
-  // ======================================================
-
-  const scheduleRecognition = useCallback(
-    (delay = 600) => {
-      clearRestartTimer();
+  const scheduleRecording = useCallback(
+    (delay = 500) => {
+      clearTimer();
 
       if (!shouldListenRef.current) return;
       if (speakingRef.current || processingRef.current) return;
       if (startingRef.current || listeningRef.current) return;
 
-      restartTimerRef.current = setTimeout(() => {
-        restartTimerRef.current = null;
+      timerRef.current = setTimeout(() => {
+        timerRef.current = null;
 
         if (!shouldListenRef.current) return;
         if (speakingRef.current || processingRef.current) return;
-        if (startingRef.current || listeningRef.current) return;
 
-        startRecognitionRef.current?.();
+        startRecordingRef.current?.();
       }, delay);
     },
-    [clearRestartTimer]
+    [clearTimer]
   );
 
   // ======================================================
-  // SPEAK USING FEMALE-SOUNDING BROWSER VOICE
+  // STOP CURRENT RECORDING
+  // ======================================================
+
+  const stopRecording = useCallback(
+    (discard = true) => {
+      clearTimer();
+
+      const recorder = recorderRef.current;
+
+      if (recorder && recorder.state === "recording") {
+        discardRef.current = discard;
+
+        try {
+          recorder.stop();
+        } catch (error) {
+          console.error("Recording stop error:", error);
+        }
+      }
+
+      listeningRef.current = false;
+      setListening(false);
+    },
+    [clearTimer]
+  );
+
+  // ======================================================
+  // SPEAK USING BROWSER VOICE
   // ======================================================
 
   const speak = useCallback(
     (message) => {
       const text = getTextValue(message);
+
       if (!text || !mountedRef.current) return;
 
       if (
@@ -336,9 +334,7 @@ function VoiceAssistant() {
       const speechId = ++speechIdRef.current;
 
       window.speechSynthesis.cancel();
-
-      clearRestartTimer();
-      stopRecognition();
+      stopRecording(true);
 
       speakingRef.current = true;
       setVoiceActive(true);
@@ -354,29 +350,20 @@ function VoiceAssistant() {
       utterance.pitch = 1.12;
       utterance.volume = 1;
 
-      const voices = window.speechSynthesis.getVoices();
       const selectedVoice = selectPreferredVoice(
-        voices,
+        window.speechSynthesis.getVoices(),
         language
       );
 
       if (selectedVoice) {
         utterance.voice = selectedVoice;
-
-        console.log(
-          "🎙️ Shifra voice:",
-          selectedVoice.name,
-          selectedVoice.lang
-        );
-      } else {
-        console.warn("No browser voice is currently available.");
       }
 
       utterance.onstart = () => {
         if (speechIdRef.current !== speechId) return;
 
         speakingRef.current = true;
-        setStatus("🔊 Shifra is Speaking...");
+        setStatus("🔊 Shifra is speaking...");
       };
 
       utterance.onend = () => {
@@ -387,8 +374,8 @@ function VoiceAssistant() {
         if (!mountedRef.current) return;
 
         if (shouldListenRef.current) {
-          setStatus("🎙️ Shifra is Listening...");
-          scheduleRecognition(700);
+          setStatus("🎙️ Shifra is listening...");
+          scheduleRecording(700);
         } else {
           setVoiceActive(false);
           setStatus("Click Start Voice to activate Shifra.");
@@ -399,13 +386,10 @@ function VoiceAssistant() {
         if (speechIdRef.current !== speechId) return;
 
         speakingRef.current = false;
-
         console.error("Speech output error:", event.error);
 
-        if (!mountedRef.current) return;
-
         if (shouldListenRef.current) {
-          scheduleRecognition(700);
+          scheduleRecording(700);
         } else {
           setVoiceActive(false);
           setStatus("Speech output failed.");
@@ -417,17 +401,15 @@ function VoiceAssistant() {
         window.speechSynthesis.speak(utterance);
       } catch (error) {
         speakingRef.current = false;
-
         console.error("Speech could not start:", error);
-
         setStatus("Unable to start speech output.");
       }
     },
-    [clearRestartTimer, scheduleRecognition, stopRecognition]
+    [scheduleRecording, stopRecording]
   );
 
   // ======================================================
-  // SYSTEM COMMAND
+  // SYSTEM COMMANDS
   // ======================================================
 
   const runSystemCommand = useCallback(
@@ -445,8 +427,6 @@ function VoiceAssistant() {
         const response = await SystemAPI.post("/system/run", {
           command,
         });
-
-        console.log("System command response:", response.data);
 
         speak(
           response.data?.message ||
@@ -483,7 +463,7 @@ function VoiceAssistant() {
         ["hello", "hi", "hey"].includes(cmd) ||
         cmd.includes("hello shifra")
       ) {
-        speak("Hello Karan! How can I help you?");
+        speak("Hello! How can I help you?");
         return true;
       }
 
@@ -521,7 +501,11 @@ function VoiceAssistant() {
           command: "open file explorer",
         },
         {
-          phrases: ["open cmd", "open command prompt", "command prompt kholo"],
+          phrases: [
+            "open cmd",
+            "open command prompt",
+            "command prompt kholo",
+          ],
           command: "open cmd",
         },
         {
@@ -578,11 +562,7 @@ function VoiceAssistant() {
         cmd === "restart" ||
         cmd.includes("restart computer")
       ) {
-        if (
-          !window.confirm(
-            "Are you sure you want to restart the computer?"
-          )
-        ) {
+        if (!window.confirm("Are you sure you want to restart the computer?")) {
           speak("Restart cancelled.");
           return true;
         }
@@ -594,11 +574,7 @@ function VoiceAssistant() {
         cmd === "shutdown" ||
         cmd.includes("shutdown computer")
       ) {
-        if (
-          !window.confirm(
-            "Are you sure you want to shut down the computer?"
-          )
-        ) {
+        if (!window.confirm("Are you sure you want to shut down the computer?")) {
           speak("Shutdown cancelled.");
           return true;
         }
@@ -662,7 +638,7 @@ function VoiceAssistant() {
   );
 
   // ======================================================
-  // PROFILE FETCH + AI CHAT
+  // PROFILE + GEMINI CHAT
   // ======================================================
 
   const sendToAI = useCallback(
@@ -692,18 +668,13 @@ function VoiceAssistant() {
         const intent = findProfileIntent(message);
 
         if (intent) {
-          const value = getProfileValue(
-            personalData,
-            intent.field
-          );
+          const value = getProfileValue(personalData, intent.field);
 
-          if (value) {
-            speak(`${intent.label}: ${value}.`);
-          } else {
-            speak(
-              `Sorry, ${intent.label.toLowerCase()} profile mein save nahi hai.`
-            );
-          }
+          speak(
+            value
+              ? `${intent.label}: ${value}.`
+              : `Sorry, ${intent.label.toLowerCase()} profile mein save nahi hai.`
+          );
 
           return;
         }
@@ -726,8 +697,6 @@ function VoiceAssistant() {
           data.text ||
           "Sorry, I could not understand that.";
 
-        console.log("🤖 Shifra reply:", reply);
-
         speak(reply);
       } catch (error) {
         console.error(
@@ -745,194 +714,245 @@ function VoiceAssistant() {
   );
 
   // ======================================================
-  // START SPEECH RECOGNITION
+  // TRANSCRIBE AUDIO USING YOUR BACKEND
   // ======================================================
 
-  const startRecognition = useCallback(() => {
+  const transcribeAudio = useCallback(async (blob) => {
+    if (!blob || blob.size === 0) return "";
+
+    const formData = new FormData();
+
+    const isMp4 = blob.type.includes("mp4");
+    const extension = isMp4 ? "mp4" : "webm";
+
+    formData.append(
+      "audio",
+      blob,
+      `voice-${Date.now()}.${extension}`
+    );
+
+    // Assumes API baseURL already includes /api.
+    const response = await API.post("/voice/transcribe", formData);
+
+    return response?.data?.text?.trim() || "";
+  }, []);
+
+  // ======================================================
+  // RECORD AUDIO SEGMENTS
+  // ======================================================
+
+  const startRecording = useCallback(() => {
     if (!shouldListenRef.current) return;
     if (speakingRef.current || processingRef.current) return;
     if (startingRef.current || listeningRef.current) return;
 
+    const stream = streamRef.current;
+
+    if (!stream || !stream.active) {
+      setStatus("Microphone is not available.");
+      return;
+    }
+
+    if (
+      recorderRef.current &&
+      recorderRef.current.state === "recording"
+    ) {
+      return;
+    }
+
+    if (!window.MediaRecorder) {
+      setStatus("Audio recording is not supported in this environment.");
+      return;
+    }
+
     startingRef.current = true;
 
     try {
-      const settings = getSavedVoiceSettings() || {};
-      const language = settings.voiceLang || "en-IN";
+      let options = {};
 
-      const recognition = createSpeechRecognition(language);
-
-      if (!recognition) {
-        throw new Error(
-          "Speech recognition is not supported. Use Chrome or Edge."
-        );
+      if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+        options.mimeType = "audio/webm;codecs=opus";
+      } else if (MediaRecorder.isTypeSupported("audio/webm")) {
+        options.mimeType = "audio/webm";
+      } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
+        options.mimeType = "audio/mp4";
       }
 
-      recognitionRef.current = recognition;
-      recognition.continuous = true;
-      recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
-      recognition.lang = language;
+      const recorder = new MediaRecorder(stream, options);
 
-      recognition.onstart = () => {
-        startingRef.current = false;
+      recorderRef.current = recorder;
+      chunksRef.current = [];
+      discardRef.current = false;
 
-        if (!shouldListenRef.current) {
-          try {
-            recognition.stop();
-          } catch {
-            // Ignore.
-          }
-
-          return;
+      recorder.ondataavailable = (event) => {
+        if (event.data?.size > 0) {
+          chunksRef.current.push(event.data);
         }
+      };
 
+      recorder.onstart = () => {
+        startingRef.current = false;
         listeningRef.current = true;
+
         setListening(true);
         setVoiceActive(true);
         setStatus("🎙️ Shifra is Listening...");
       };
 
-      recognition.onresult = async (event) => {
-        if (!shouldListenRef.current) return;
-        if (speakingRef.current || processingRef.current) return;
+      recorder.onerror = (event) => {
+        startingRef.current = false;
 
-        const result =
-          event.results?.[event.results.length - 1];
+        console.error("MediaRecorder error:", event.error);
+        setStatus("Microphone recording error.");
+      };
 
-        const transcript = result?.[0]?.transcript?.trim();
-
-        if (!transcript) return;
-
-        console.log("🎙️ You said:", transcript);
-
-        processingRef.current = true;
-        setStatus(`You said: ${transcript}`);
-
-        try {
-          recognition.stop();
-        } catch {
-          // Ignore.
+      recorder.onstop = async () => {
+        if (recorderRef.current === recorder) {
+          recorderRef.current = null;
         }
 
+        startingRef.current = false;
         listeningRef.current = false;
-        setListening(false);
+
+        if (mountedRef.current) {
+          setListening(false);
+        }
+
+        const discard = discardRef.current;
+        discardRef.current = false;
+
+        const chunks = chunksRef.current;
+        chunksRef.current = [];
+
+        if (discard || !shouldListenRef.current) return;
+
+        const blob = new Blob(chunks, {
+          type: recorder.mimeType || "audio/webm",
+        });
+
+        if (!blob.size) {
+          scheduleRecording(300);
+          return;
+        }
 
         try {
-          const handled =
-            await handleCommandRef.current?.(transcript);
+          processingRef.current = true;
+          setStatus("📝 Converting speech to text...");
 
-          if (!handled) {
+          const transcript = await transcribeAudio(blob);
+
+          if (!mountedRef.current || !shouldListenRef.current) return;
+
+          if (!transcript) {
+            setStatus("Speech not detected. Listening again...");
+            return;
+          }
+
+          console.log("🎙️ You said:", transcript);
+
+          setStatus(`You said: ${transcript}`);
+
+          const handled = await handleCommandRef.current?.(transcript);
+
+          if (!handled && shouldListenRef.current) {
             await sendToAIRef.current?.(transcript);
           }
         } catch (error) {
-          console.error("Voice processing error:", error);
-          speak("Sorry, something went wrong.");
+          console.error(
+            "Voice transcription error:",
+            error.response?.data || error.message
+          );
+
+          if (mountedRef.current) {
+            setStatus(
+              error.response?.data?.message ||
+                "Voice transcription failed. Check the backend and Gemini API."
+            );
+          }
         } finally {
           processingRef.current = false;
 
           if (
+            mountedRef.current &&
             shouldListenRef.current &&
             !speakingRef.current
           ) {
-            scheduleRecognition(700);
+            scheduleRecording(500);
           }
         }
       };
 
-      recognition.onerror = (event) => {
-        startingRef.current = false;
-        listeningRef.current = false;
-        setListening(false);
+      recorder.start();
 
-        if (event.error === "aborted") {
-          console.log("Speech recognition stopped normally.");
-          return;
+      timerRef.current = setTimeout(() => {
+        timerRef.current = null;
+
+        if (recorder.state === "recording") {
+          try {
+            // This is a normal segment, so it should be transcribed.
+            discardRef.current = false;
+            recorder.stop();
+          } catch (error) {
+            console.error("Recording segment error:", error);
+          }
         }
-
-        console.error("Speech recognition error:", event.error);
-
-        if (event.error === "no-speech") {
-          scheduleRecognition(500);
-          return;
-        }
-
-        if (event.error === "network") {
-          setStatus(
-            "🌐 Speech service network error. Check internet connection."
-          );
-
-          scheduleRecognition(1500);
-          return;
-        }
-
-        if (event.error === "not-allowed") {
-          shouldListenRef.current = false;
-          setVoiceActive(false);
-          setStatus("Microphone permission denied.");
-          return;
-        }
-
-        setStatus(`Voice error: ${event.error}`);
-        scheduleRecognition(1000);
-      };
-
-      recognition.onend = () => {
-        listeningRef.current = false;
-        startingRef.current = false;
-        setListening(false);
-
-        if (!shouldListenRef.current) {
-          setVoiceActive(false);
-          setStatus("🛑 Shifra stopped.");
-          return;
-        }
-
-        if (speakingRef.current || processingRef.current) {
-          return;
-        }
-
-        scheduleRecognition(500);
-      };
-
-      recognition.start();
+      }, RECORDING_INTERVAL);
     } catch (error) {
       startingRef.current = false;
-      listeningRef.current = false;
-      setListening(false);
 
-      console.error("Recognition start failed:", error);
+      console.error("Unable to start recording:", error);
 
-      setStatus(error.message || "Voice engine failed.");
+      setStatus(error.message || "Unable to start microphone recording.");
 
-      if (shouldListenRef.current) {
-        scheduleRecognition(1200);
-      }
+      scheduleRecording(1200);
     }
-  }, [scheduleRecognition, speak]);
+  }, [scheduleRecording, transcribeAudio]);
 
-  // Keep latest callbacks available to recognition events.
-  startRecognitionRef.current = startRecognition;
+  // Keep the newest callback for asynchronous recorder events.
+  startRecordingRef.current = startRecording;
   handleCommandRef.current = handleCommand;
   sendToAIRef.current = sendToAI;
 
   // ======================================================
-  // START VOICE
+  // START VOICE ASSISTANT
   // ======================================================
 
   const startListening = useCallback(async () => {
     if (shouldListenRef.current) return;
 
+    if (
+      !navigator.mediaDevices?.getUserMedia ||
+      !window.MediaRecorder
+    ) {
+      setStatus(
+        "Microphone recording is not supported in this environment."
+      );
+      return;
+    }
+
     try {
-      setStatus("🎙️ Checking microphone permission...");
+      setStatus("🎙️ Requesting microphone permission...");
 
-      await requestMicPermission();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
 
-      clearRestartTimer();
+      if (!mountedRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
 
+      streamRef.current = stream;
       shouldListenRef.current = true;
-      setVoiceActive(true);
 
-      startRecognitionRef.current?.();
+      setVoiceActive(true);
+      setStatus("🎙️ Shifra is Listening...");
+
+      startRecordingRef.current?.();
     } catch (error) {
       console.error("Microphone permission error:", error);
 
@@ -940,53 +960,45 @@ function VoiceAssistant() {
       setListening(false);
       setVoiceActive(false);
 
-      if (error?.name === "NotAllowedError") {
-        setStatus("Allow microphone access in browser settings.");
-      } else if (error?.name === "NotFoundError") {
+      if (error.name === "NotAllowedError") {
+        setStatus("Microphone permission denied. Allow microphone access.");
+      } else if (error.name === "NotFoundError") {
         setStatus("No microphone was detected.");
       } else {
-        setStatus(error?.message || "Voice engine failed.");
+        setStatus(error.message || "Unable to access microphone.");
       }
     }
-  }, [clearRestartTimer]);
+  }, []);
 
   // ======================================================
-  // STOP VOICE
+  // STOP VOICE ASSISTANT
   // ======================================================
 
   const stopListening = useCallback(() => {
     console.log("🛑 Stopping Shifra...");
 
     shouldListenRef.current = false;
+    startingRef.current = false;
     processingRef.current = false;
     speakingRef.current = false;
-    startingRef.current = false;
 
     speechIdRef.current += 1;
 
-    clearRestartTimer();
+    clearTimer();
+    window.speechSynthesis?.cancel();
 
-    try {
-      recognitionRef.current?.stop();
-    } catch {
-      // Recognition may already be stopped.
-    }
+    stopRecording(true);
 
-    try {
-      window.speechSynthesis.cancel();
-    } catch {
-      // Ignore.
-    }
-
-    listeningRef.current = false;
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
 
     setListening(false);
     setVoiceActive(false);
     setStatus("🛑 Shifra stopped.");
-  }, [clearRestartTimer]);
+  }, [clearTimer, stopRecording]);
 
   // ======================================================
-  // LOAD BROWSER VOICES + CLEANUP
+  // CLEANUP
   // ======================================================
 
   useEffect(() => {
@@ -1012,31 +1024,32 @@ function VoiceAssistant() {
 
     return () => {
       mountedRef.current = false;
-
       shouldListenRef.current = false;
-      listeningRef.current = false;
-      processingRef.current = false;
-      speakingRef.current = false;
-      startingRef.current = false;
 
-      speechIdRef.current += 1;
+      clearTimer();
+      window.speechSynthesis?.cancel();
 
-      clearRestartTimer();
+      const recorder = recorderRef.current;
+
+      if (recorder && recorder.state === "recording") {
+        try {
+          discardRef.current = true;
+          recorder.stop();
+        } catch (error) {
+          console.error("Recorder cleanup error:", error);
+        }
+      }
+
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+
+      streamRef.current = null;
+      recorderRef.current = null;
 
       if ("speechSynthesis" in window) {
         window.speechSynthesis.onvoiceschanged = null;
-        window.speechSynthesis.cancel();
       }
-
-      try {
-        recognitionRef.current?.stop();
-      } catch {
-        // Ignore cleanup errors.
-      }
-
-      recognitionRef.current = null;
     };
-  }, [clearRestartTimer]);
+  }, [clearTimer]);
 
   // ======================================================
   // UI
@@ -1080,5 +1093,3 @@ function VoiceAssistant() {
 }
 
 export default VoiceAssistant;
-
-
