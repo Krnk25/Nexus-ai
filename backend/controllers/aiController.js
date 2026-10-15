@@ -1,21 +1,24 @@
+
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import Memory from "../models/Memory.js";
+
 import Settings from "../models/Settings.js";
 
 // ======================================================
-// GEMINI CLIENT
+// CONFIGURATION
 // ======================================================
 
 const genAI = new GoogleGenerativeAI(
   process.env.GEMINI_API_KEY || ""
 );
 
+const DEFAULT_USER_ID = "default-user";
+const DEFAULT_PROFILE_KEY = "default";
+
 const getAIModel = () =>
   process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
-// ======================================================
-// PROFILE FIELDS AND ALIASES
-// ======================================================
+const sleep = (ms) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
 
 const PROFILE_FIELDS = [
   "name",
@@ -38,9 +41,15 @@ const PROFILE_FIELDS = [
 
 const PROFILE_ALIASES = {
   name: ["name", "my name", "mera naam", "mera name", "naam"],
-  email: ["email", "email address"],
-  mobile: ["mobile", "phone", "phone number", "mobile number"],
-  education: ["education", "qualification"],
+  email: ["email", "email address", "my email"],
+  mobile: [
+    "mobile",
+    "phone",
+    "phone number",
+    "mobile number",
+    "my mobile",
+  ],
+  education: ["education", "qualification", "my education"],
   college: ["college", "college name"],
   skills: ["skills", "my skills"],
   github: ["github", "github link"],
@@ -48,32 +57,30 @@ const PROFILE_ALIASES = {
   portfolio: ["portfolio", "portfolio link"],
   location: ["location", "city", "address"],
   village: ["village", "my village", "gaon", "mera gaon"],
-  bio: ["bio", "about me", "about"],
+  bio: ["bio", "about me"],
   fatherName: [
     "fatherName",
     "father name",
     "father",
-    "father's name",
-    "papa",
     "papa name",
-    "father name is",
   ],
   motherName: [
     "motherName",
     "mother name",
     "mother",
-    "mother's name",
-    "maa",
-    "mother name is",
+    "maa name",
   ],
   brotherName: [
     "brotherName",
     "brother name",
-    "brother",
-    "brothers",
-    "bhai",
+    "bhai name",
   ],
-  sister: ["sister", "sisterName", "sister name", "behen"],
+  sister: [
+    "sister",
+    "sisterName",
+    "sister name",
+    "behen",
+  ],
 };
 
 const normalizeKey = (key = "") =>
@@ -83,144 +90,308 @@ const normalizeKey = (key = "") =>
     .replace(/[^\p{L}\p{N}]/gu, "");
 
 // ======================================================
-// GET PROFILE FROM MONGODB
+// GEMINI RETRY
 // ======================================================
 
-const getUserProfile = async () => {
-  try {
-    const memories = await Memory.find()
-      .sort({ updatedAt: -1, createdAt: -1 })
-      .lean();
+const withGeminiRetry = async (operation, maxAttempts = 3) => {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      const status = Number(error?.status);
+      const retryable = [408, 429, 500, 502, 503, 504].includes(
+        status
+      );
 
-    const profile = Object.fromEntries(
-      PROFILE_FIELDS.map((field) => [field, ""])
+      if (!retryable || attempt === maxAttempts) {
+        throw error;
+      }
+
+      const delay = attempt * 1500;
+
+      console.warn(
+        `Gemini HTTP ${status}. Retrying in ${delay}ms...`
+      );
+
+      await sleep(delay);
+    }
+  }
+
+  throw new Error("Gemini request failed after retries.");
+};
+
+// ======================================================
+// EXTRACT PERSONAL INFORMATION
+// ======================================================
+
+const MEMORY_PATTERNS = [
+  {
+    key: "name",
+    regex:
+      /^(?:my\s+name\s+is|my\s+name|mera\s+naam|mera\s+name|मेरा\s+नाम|माझं\s+नाव|माझे\s+नाव)\s*(?:(?:is|hai|है|आहे)\s+)?(.+?)\s*[.!।]*$/i,
+  },
+  {
+    key: "village",
+    regex:
+      /^(?:my\s+village(?:\s+name)?(?:\s+is)?|mera\s+gaon|mera\s+village|माझं\s+गाव|माझे\s+गाव)\s+(.+?)\s*[.!।]*$/i,
+  },
+  {
+    key: "fatherName",
+    regex:
+      /^(?:my\s+father(?:'s)?\s+name\s+is|father\s+name\s+is|mere\s+papa\s+ka\s+naam|mere\s+father\s+ka\s+naam|माझ्या\s+वडिलांचे\s+नाव)\s+(.+?)\s*[.!।]*$/i,
+  },
+  {
+    key: "motherName",
+    regex:
+      /^(?:my\s+mother(?:'s)?\s+name\s+is|mother\s+name\s+is|meri\s+maa\s+ka\s+naam|meri\s+mother\s+ka\s+naam|माझ्या\s+आईचे\s+नाव)\s+(.+?)\s*[.!।]*$/i,
+  },
+  {
+    key: "brotherName",
+    regex:
+      /^(?:my\s+brother(?:'s)?\s+name\s+is|brother\s+name\s+is|mere\s+bhai\s+ka\s+naam|माझ्या\s+भावाचे\s+नाव)\s+(.+?)\s*[.!।]*$/i,
+  },
+  {
+    key: "sister",
+    regex:
+      /^(?:my\s+sister(?:'s)?\s+name\s+is|sister\s+name\s+is|meri\s+behen\s+ka\s+naam|माझ्या\s+बहिणीचे\s+नाव)\s+(.+?)\s*[.!।]*$/i,
+  },
+  {
+    key: "education",
+    regex:
+      /^(?:my\s+education\s+is|my\s+qualification\s+is|meri\s+education(?:\s+hai)?|meri\s+qualification(?:\s+hai)?|माझे\s+शिक्षण)\s+(.+?)\s*[.!।]*$/i,
+  },
+  {
+    key: "college",
+    regex:
+      /^(?:my\s+college(?:\s+name)?\s+is|college\s+name\s+is|माझ्या\s+कॉलेजचे\s+नाव)\s+(.+?)\s*[.!।]*$/i,
+  },
+  {
+    key: "email",
+    regex:
+      /^(?:my\s+email(?:\s+address)?\s+is|email\s+is|mera\s+email(?:\s+address)?\s+hai)\s+([^\s]+@[^\s]+\.[^\s]+)\s*$/i,
+  },
+  {
+    key: "mobile",
+    regex:
+      /^(?:my\s+mobile(?:\s+number)?\s+is|my\s+phone\s+number\s+is|mera\s+mobile(?:\s+number)?\s+hai|mera\s+phone\s+number\s+hai)\s+([+\d][\d\s-]{7,18})\s*$/i,
+  },
+  {
+    key: "skills",
+    regex:
+      /^(?:my\s+skills\s+are|my\s+skills\s+is|meri\s+skills\s+hai|meri\s+skills\s+hain|माझी\s+कौशल्ये)\s+(.+?)\s*[.!।]*$/i,
+  },
+  {
+    key: "github",
+    regex:
+      /^(?:my\s+github(?:\s+link)?\s+is|github\s+link\s+is)\s+(\S+)\s*$/i,
+  },
+  {
+    key: "linkedin",
+    regex:
+      /^(?:my\s+linkedin(?:\s+link)?\s+is|linkedin\s+link\s+is)\s+(\S+)\s*$/i,
+  },
+  {
+    key: "portfolio",
+    regex:
+      /^(?:my\s+portfolio(?:\s+link)?\s+is|portfolio\s+link\s+is)\s+(\S+)\s*$/i,
+  },
+  {
+    key: "location",
+    regex:
+      /^(?:my\s+location\s+is|i\s+live\s+in|i\s+am\s+from|main\s+rehta\s+hoon|main\s+rehti\s+hoon|मी\s+राहतो|मी\s+राहते)\s+(.+?)\s*[.!।]*$/i,
+  },
+  {
+    key: "bio",
+    regex:
+      /^(?:my\s+bio\s+is|about\s+me\s+is)\s+(.+?)\s*[.!।]*$/i,
+  },
+];
+
+const extractExplicitMemory = (message) => {
+  const text = String(message || "").trim();
+
+  for (const pattern of MEMORY_PATTERNS) {
+    const match = text.match(pattern.regex);
+
+    if (!match?.[1]) continue;
+
+    let value = match[1]
+      .trim()
+      .replace(/[.!।]+$/, "")
+      .trim();
+
+    value = value
+      .replace(
+        /\s+(?:hai|hain|hoon|ho|है|हैं|आहे|आहेत)$/i,
+        ""
+      )
+      .trim();
+
+    if (
+      !value ||
+      value.length > 500 ||
+      /^(what|why|how|when|where|who|kya|kaise|kyu|kab|kahan)\b/i.test(
+        value
+      )
+    ) {
+      continue;
+    }
+
+    // Validate email values before saving.
+    if (
+      pattern.key === "email" &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+    ) {
+      continue;
+    }
+
+    return {
+      key: pattern.key,
+      value,
+    };
+  }
+
+  return null;
+};
+
+// ======================================================
+// SAVE PERSONAL INFORMATION TO PROFILE
+// ======================================================
+
+export const saveAutomaticMemory = async (userMessage) => {
+  try {
+    if (
+      typeof userMessage !== "string" ||
+      !userMessage.trim()
+    ) {
+      return null;
+    }
+
+    const extracted = extractExplicitMemory(userMessage);
+
+    if (!extracted) {
+      return null;
+    }
+
+    const settings = await Settings.findOne({
+      userId: DEFAULT_USER_ID,
+    }).lean();
+
+    if (settings?.autoMemory === false) {
+      console.log("Auto memory disabled in settings.");
+      return null;
+    }
+
+    if (!PROFILE_FIELDS.includes(extracted.key)) {
+      console.warn("Unsupported profile field:", extracted.key);
+      return null;
+    }
+
+    const savedProfile = await Profile.findOneAndUpdate(
+      { profileKey: DEFAULT_PROFILE_KEY },
+      {
+        $set: {
+          [extracted.key]: extracted.value,
+        },
+      },
+      {
+        upsert: true,
+        new: true,
+        runValidators: true,
+        setDefaultsOnInsert: true,
+      }
     );
 
-    const memoryMap = new Map();
-
-    for (const memory of memories) {
-      const key = normalizeKey(memory.key);
-
-      if (!key || memory.value == null) continue;
-
-      if (!memoryMap.has(key)) {
-        memoryMap.set(key, memory.value);
-      }
-    }
-
-    // Read individual memory records.
-    for (const field of PROFILE_FIELDS) {
-      const aliases = PROFILE_ALIASES[field] || [field];
-
-      for (const alias of aliases) {
-        const key = normalizeKey(alias);
-
-        if (!memoryMap.has(key)) continue;
-
-        const value = memoryMap.get(key);
-
-        if (String(value).trim()) {
-          profile[field] = String(value).trim();
-          break;
-        }
-      }
-    }
-
-    // Read a complete profile stored as JSON.
-    const bundleKeys = [
-      "profile",
-      "personalprofile",
-      "personaldata",
-      "personaldetails",
-      "myprofile",
-    ];
-
-    for (const bundleKey of bundleKeys) {
-      if (!memoryMap.has(bundleKey)) continue;
-
-      try {
-        const bundle = JSON.parse(
-          String(memoryMap.get(bundleKey))
-        );
-
-        if (
-          !bundle ||
-          typeof bundle !== "object" ||
-          Array.isArray(bundle)
-        ) {
-          continue;
-        }
-
-        for (const field of PROFILE_FIELDS) {
-          if (profile[field]) continue;
-
-          const acceptedKeys = [
-            field,
-            ...(PROFILE_ALIASES[field] || []),
-          ].map(normalizeKey);
-
-          for (const [key, value] of Object.entries(bundle)) {
-            if (
-              acceptedKeys.includes(normalizeKey(key)) &&
-              value !== null &&
-              value !== undefined &&
-              String(value).trim()
-            ) {
-              profile[field] = Array.isArray(value)
-                ? value.join(", ")
-                : String(value).trim();
-
-              break;
-            }
-          }
-        }
-      } catch {
-        // Ignore invalid JSON memories.
-      }
-    }
-
-    console.log("Profile loaded from MongoDB memories:", {
-      memoryCount: memories.length,
-      nameAvailable: Boolean(profile.name),
-      villageAvailable: Boolean(profile.village),
-      fatherAvailable: Boolean(profile.fatherName),
-      motherAvailable: Boolean(profile.motherName),
-      brotherAvailable: Boolean(profile.brotherName),
-      sisterAvailable: Boolean(profile.sister),
+    console.log("PROFILE FIELD SAVED:", {
+      key: extracted.key,
+      value: savedProfile[extracted.key],
     });
 
-    return profile;
+    return savedProfile;
   } catch (error) {
-    console.error("PROFILE MEMORY FETCH ERROR:", error.message);
-    return {};
+    console.error("AUTO PROFILE SAVE ERROR:", error.message);
+    return null;
   }
 };
 
 // ======================================================
-// CLEAN AND MERGE PROFILE
+// LOAD PROFILE FROM MONGODB
 // ======================================================
 
-const cleanProfile = (profile = {}) => {
-  const cleaned = {};
+const getUserProfile = async () => {
+  const emptyProfile = Object.fromEntries(
+    PROFILE_FIELDS.map((field) => [field, ""])
+  );
+
+  try {
+    const savedProfile = await Profile.findOne({
+      profileKey: DEFAULT_PROFILE_KEY,
+    }).lean();
+
+    if (!savedProfile) {
+      console.log("No saved Profile document found.");
+      return emptyProfile;
+    }
+
+    const profile = { ...emptyProfile };
+
+    for (const field of PROFILE_FIELDS) {
+      const value = savedProfile[field];
+
+      if (value == null) continue;
+
+      if (Array.isArray(value)) {
+        profile[field] = value.join(", ");
+      } else if (
+        typeof value === "string" ||
+        typeof value === "number"
+      ) {
+        profile[field] = String(value).trim();
+      }
+    }
+
+    console.log("PROFILE LOADED:", {
+      profileFound: true,
+      nameAvailable: Boolean(profile.name),
+      emailAvailable: Boolean(profile.email),
+      mobileAvailable: Boolean(profile.mobile),
+      villageAvailable: Boolean(profile.village),
+      educationAvailable: Boolean(profile.education),
+      skillsAvailable: Boolean(profile.skills),
+    });
+
+    return profile;
+  } catch (error) {
+    console.error("PROFILE FETCH ERROR:", error.message);
+    return emptyProfile;
+  }
+};
+
+// ======================================================
+// PROFILE HELPERS
+// ======================================================
+
+const cleanProfile = (input = {}) => {
+  const result = {};
 
   for (const field of PROFILE_FIELDS) {
-    const value = profile?.[field];
+    const value = input?.[field];
 
     if (typeof value === "string") {
-      cleaned[field] = value.trim();
+      result[field] = value.trim();
     } else if (Array.isArray(value)) {
-      cleaned[field] = value.join(", ");
+      result[field] = value.join(", ");
     } else if (
       typeof value === "number" &&
       Number.isFinite(value)
     ) {
-      cleaned[field] = String(value);
+      result[field] = String(value);
     } else {
-      cleaned[field] = "";
+      result[field] = "";
     }
   }
 
-  return cleaned;
+  return result;
 };
 
 const mergeProfiles = (
@@ -231,6 +402,7 @@ const mergeProfiles = (
   const frontend = cleanProfile(frontendProfile);
   const merged = {};
 
+  // Database profile takes priority over frontend values.
   for (const field of PROFILE_FIELDS) {
     merged[field] = db[field] || frontend[field] || "";
   }
@@ -239,7 +411,236 @@ const mergeProfiles = (
 };
 
 // ======================================================
-// CURRENT DATE AND TIME — INDIA
+// PERSONAL QUESTION DETECTION
+// ======================================================
+
+const PERSONAL_QUESTIONS = [
+  {
+    field: "name",
+    regex:
+      /\b(?:my\s+name|what\s+is\s+my\s+name|what'?s\s+my\s+name|mera\s+(?:naam|name)|naam\s+kya|name\s+kya|who\s+am\s+i)\b|मेरा\s+नाम\s+क्या|माझं\s+नाव\s+काय|माझे\s+नाव\s+काय/i,
+  },
+  {
+    field: "village",
+    regex:
+      /\b(?:my\s+village|which\s+village|mera\s+gaon|mera\s+village|gaon\s+kya|village\s+name|where\s+do\s+i\s+live|mera\s+gaon\s+kya)\b|माझं\s+गाव|माझे\s+गाव|मेरा\s+गांव/i,
+  },
+  {
+    field: "fatherName",
+    regex:
+      /\b(?:my\s+father|father\s+name|papa\s+name|mere\s+papa|mere\s+father|mere\s+papa\s+ka\s+naam)\b|माझ्या\s+वडिलांचे\s+नाव|वडिलांचे\s+नाव/i,
+  },
+  {
+    field: "motherName",
+    regex:
+      /\b(?:my\s+mother|mother\s+name|maa\s+name|meri\s+maa|meri\s+mother|meri\s+maa\s+ka\s+naam)\b|माझ्या\s+आईचे\s+नाव|आईचे\s+नाव/i,
+  },
+  {
+    field: "brotherName",
+    regex:
+      /\b(?:my\s+brother|brother\s+name|bhai\s+name|mere\s+bhai)\b|माझ्या\s+भावाचे\s+नाव|भावाचे\s+नाव/i,
+  },
+  {
+    field: "sister",
+    regex:
+      /\b(?:my\s+sister|sister\s+name|meri\s+behen)\b|माझ्या\s+बहिणीचे\s+नाव|बहिणीचे\s+नाव/i,
+  },
+  {
+    field: "education",
+    regex:
+      /\b(?:my\s+education|my\s+qualification|what\s+did\s+i\s+study|meri\s+education|meri\s+qualification|qualification\s+kya)\b|माझे\s+शिक्षण|माझी\s+शैक्षणिक\s+पात्रता/i,
+  },
+  {
+    field: "college",
+    regex:
+      /\b(?:my\s+college|college\s+name|which\s+college|mera\s+college)\b|माझे\s+कॉलेज|माझ्या\s+कॉलेजचे\s+नाव/i,
+  },
+  {
+    field: "skills",
+    regex:
+      /\b(?:my\s+skills|what\s+are\s+my\s+skills|meri\s+skills|meri\s+skill)\b|माझी\s+कौशल्ये|माझे\s+स्किल्स/i,
+  },
+  {
+    field: "email",
+    regex:
+      /\b(?:my\s+email|my\s+email\s+address|what\s+is\s+my\s+email|what'?s\s+my\s+email|mera\s+email|meri\s+email|email\s+kya)\b/i,
+  },
+  {
+    field: "mobile",
+    regex:
+      /\b(?:my\s+mobile|my\s+phone\s+number|my\s+mobile\s+number|mera\s+mobile|mera\s+number|mera\s+phone|mobile\s+number\s+kya)\b/i,
+  },
+  {
+    field: "github",
+    regex: /\b(?:my\s+github|github\s+link|mera\s+github)\b/i,
+  },
+  {
+    field: "linkedin",
+    regex: /\b(?:my\s+linkedin|linkedin\s+link|mera\s+linkedin)\b/i,
+  },
+  {
+    field: "portfolio",
+    regex: /\b(?:my\s+portfolio|portfolio\s+link)\b/i,
+  },
+  {
+    field: "location",
+    regex:
+      /\b(?:my\s+location|where\s+am\s+i\s+from|my\s+address|meri\s+location)\b/i,
+  },
+  {
+    field: "bio",
+    regex: /\b(?:my\s+bio|about\s+me)\b/i,
+  },
+];
+
+const getPersonalField = (message = "") =>
+  PERSONAL_QUESTIONS.find((item) =>
+    item.regex.test(message)
+  )?.field || null;
+
+// ======================================================
+// PERSONAL ANSWERS
+// ======================================================
+
+const getPersonalAnswer = (field, profile, language) => {
+  const value = profile[field];
+
+  const labels = {
+    "mr-IN": {
+      name: "तुमचं नाव",
+      village: "तुमचं गाव",
+      fatherName: "तुमच्या वडिलांचं नाव",
+      motherName: "तुमच्या आईचं नाव",
+      brotherName: "तुमच्या भावाचं नाव",
+      sister: "तुमच्या बहिणीचं नाव",
+      education: "तुमचं शिक्षण",
+      college: "तुमच्या कॉलेजचं नाव",
+      skills: "तुमची कौशल्ये",
+      email: "तुमचा ईमेल",
+      mobile: "तुमचा मोबाईल नंबर",
+      github: "तुमची GitHub लिंक",
+      linkedin: "तुमची LinkedIn लिंक",
+      portfolio: "तुमची पोर्टफोलिओ लिंक",
+      location: "तुमचं ठिकाण",
+      bio: "तुमची माहिती",
+    },
+    "hi-IN": {
+      name: "Aapka naam",
+      village: "Aapka gaon",
+      fatherName: "Aapke papa ka naam",
+      motherName: "Aapki maa ka naam",
+      brotherName: "Aapke bhai ka naam",
+      sister: "Aapki behen ka naam",
+      education: "Aapki education",
+      college: "Aapke college ka naam",
+      skills: "Aapki skills",
+      email: "Aapka email",
+      mobile: "Aapka mobile number",
+      github: "Aapka GitHub link",
+      linkedin: "Aapka LinkedIn link",
+      portfolio: "Aapka portfolio link",
+      location: "Aapki location",
+      bio: "Aapki profile information",
+    },
+    "en-IN": {
+      name: "Your name",
+      village: "Your village",
+      fatherName: "Your father's name",
+      motherName: "Your mother's name",
+      brotherName: "Your brother's name",
+      sister: "Your sister's name",
+      education: "Your education",
+      college: "Your college",
+      skills: "Your skills",
+      email: "Your email",
+      mobile: "Your mobile number",
+      github: "Your GitHub link",
+      linkedin: "Your LinkedIn link",
+      portfolio: "Your portfolio link",
+      location: "Your location",
+      bio: "Your profile information",
+    },
+  };
+
+  const lang = labels[language] || labels["en-IN"];
+
+  if (value && String(value).trim()) {
+    return `${lang[field] || "Saved information"}: ${value}`;
+  }
+
+  if (language === "mr-IN") {
+    return "ही माहिती तुमच्या सेव्ह केलेल्या प्रोफाइलमध्ये सापडली नाही. कृपया आधी ती सेव्ह करा.";
+  }
+
+  if (language === "hi-IN") {
+    return "Yeh information aapki saved profile mein nahi mili. Pehle ise save karna hoga.";
+  }
+
+  return "This information was not found in your saved profile. Please save it first.";
+};
+
+// ======================================================
+// LANGUAGE DETECTION
+// ======================================================
+
+const detectLanguage = (text = "") => {
+  const marathiWords = [
+    "काय",
+    "कसे",
+    "कशी",
+    "आहे",
+    "मला",
+    "तुम्ही",
+    "माझे",
+    "माझा",
+    "माझं",
+    "माझी",
+    "सांग",
+    "कुठे",
+  ];
+
+  const lower = text.toLowerCase();
+
+  if (/[\u0900-\u097F]/.test(text)) {
+    return marathiWords.some((word) => text.includes(word))
+      ? "mr-IN"
+      : "hi-IN";
+  }
+
+  const hinglishWords = [
+    "mera",
+    "meri",
+    "mere",
+    "mujhe",
+    "kya",
+    "kaise",
+    "hai",
+    "hain",
+    "batao",
+    "naam",
+    "gaon",
+    "papa",
+    "maa",
+    "behen",
+    "bhai",
+    "kitna",
+    "kaun",
+    "kahan",
+  ];
+
+  if (
+    hinglishWords.some((word) =>
+      new RegExp(`\\b${word}\\b`, "i").test(lower)
+    )
+  ) {
+    return "hi-IN";
+  }
+
+  return "en-IN";
+};
+
+// ======================================================
+// DATE AND TIME
 // ======================================================
 
 const getCurrentDateDetails = (locale = "en-IN") => {
@@ -253,92 +654,30 @@ const getCurrentDateDetails = (locale = "en-IN") => {
       month: "long",
       year: "numeric",
     }),
-
     time: now.toLocaleTimeString(locale, {
       timeZone: "Asia/Kolkata",
       hour: "2-digit",
       minute: "2-digit",
-      second: "2-digit",
       hour12: true,
     }),
-
-    iso: now.toISOString(),
   };
 };
 
-// ======================================================
-// LANGUAGE DETECTION
-// ======================================================
-
-const detectLanguage = (text = "") => {
-  const lower = text.toLowerCase();
-
-  const marathiWords = [
-    "काय", "कसे", "कशी", "आहे", "मला", "तुम्ही",
-    "माझे", "माझा", "माझं", "माझी", "सांग",
-    "किती", "कोण", "कुठे", "आजची", "नाव",
-  ];
-
-  const hindiWords = [
-    "क्या", "कैसे", "कैसी", "है", "हूँ", "मुझे",
-    "मेरा", "मेरी", "मेरे", "आप", "तुम", "बताओ",
-    "कितना", "कौन", "कहाँ", "आज",
-  ];
-
-  if (/[\u0900-\u097F]/.test(text)) {
-    if (marathiWords.some((word) => text.includes(word))) {
-      return "mr-IN";
-    }
-
-    return "hi-IN";
-  }
-
-  const hinglishWords = [
-    "mera", "meri", "mere", "mujhe", "kya",
-    "kaise", "kaisi", "hai", "hain", "batao",
-    "naam", "gaon", "papa", "maa", "behen",
-    "bhai", "kitna", "kaun", "kahan",
-  ];
-
-  if (
-    hinglishWords.some((word) =>
-      new RegExp(`\\b${word}\\b`, "i").test(lower)
-    )
-  ) {
-    return "hi-IN";
-  }
-
-  if (hindiWords.some((word) => lower.includes(word))) {
-    return "hi-IN";
-  }
-
-  return "en-IN";
-};
-
-// ======================================================
-// DATE AND TIME QUESTION DETECTION
-// ======================================================
-
-const isTimeQuestion = (text = "") => {
-  const value = text.toLowerCase();
-
-  return [
+const isTimeQuestion = (message = "") =>
+  [
     "what time",
     "current time",
     "time now",
-    "time please",
-    "tell me time",
+    "time kya hai",
+    "abhi kitne baje",
     "समय क्या",
     "कितने बजे",
     "वेळ किती",
     "आत्ता किती वाजले",
-  ].some((item) => value.includes(item));
-};
+  ].some((item) => message.toLowerCase().includes(item));
 
-const isDateQuestion = (text = "") => {
-  const value = text.toLowerCase();
-
-  return [
+const isDateQuestion = (message = "") =>
+  [
     "what date",
     "today date",
     "current date",
@@ -346,8 +685,7 @@ const isDateQuestion = (text = "") => {
     "what is today's date",
     "आज तारीख",
     "आजची तारीख",
-  ].some((item) => value.includes(item));
-};
+  ].some((item) => message.toLowerCase().includes(item));
 
 // ======================================================
 // SYSTEM PROMPT
@@ -360,65 +698,29 @@ const buildSystemPrompt = ({
 }) => `
 You are Shifra, the AI virtual assistant inside NEXUS-AI.
 
-PERSONALITY:
-- Friendly, helpful, intelligent and natural.
-- Answer simple questions concisely.
-- Explain technical questions clearly.
-- Never invent personal information.
+Be friendly, helpful, concise, and accurate.
+Reply in the user's language: ${language}.
+Use Hindi/Hinglish for Hindi or Hinglish, Marathi for Marathi,
+and English for English.
 
-LANGUAGE:
-Detected language: ${language}
-Reply in the same language and style used by the user.
-- English questions: answer in English.
-- Hindi or Hinglish questions: answer in Hindi/Hinglish.
-- Marathi questions: answer in Marathi.
-- Mixed-language questions: use a natural mixed style.
+Current India date: ${dateDetails.date}
+Current India time: ${dateDetails.time}
 
-CURRENT DATE:
-${dateDetails.date}
-
-CURRENT TIME:
-${dateDetails.time}
-
-SAVED USER PROFILE FROM MONGODB MEMORIES:
+Saved user profile:
 ${JSON.stringify(profile, null, 2)}
 
-PERSONAL PROFILE RULES:
-1. Use the saved profile above to answer personal questions.
-2. For the user's name, use profile.name.
-3. For the user's village, use profile.village.
-4. For the user's father, use profile.fatherName.
-5. For the user's mother, use profile.motherName.
-6. For the user's brothers, use profile.brotherName.
-7. For the user's sister, use profile.sister.
-8. Use profile.education for education questions.
-9. Use profile.college for college questions.
-10. Use profile.skills for skill questions.
-11. Use profile.location for location questions.
-12. Use profile.email, profile.mobile, profile.github, and profile.linkedin for contact or link questions.
-13. Only use fields that contain actual values.
-14. Empty fields mean the information is unavailable. Do not guess.
-15. Do not claim to have retrieved information that is missing.
-16. For direct personal questions, answer directly using the saved value.
-17. Never let chat history override the current saved profile.
-18. Do not reveal personal details unless the user asks about them.
-
-IDENTITY:
-- Your name is Shifra.
-- Do not claim to be Gemini or an API.
-- Do not mention internal implementation unless asked.
-
-CODING:
+Rules:
+- Use saved profile values for personal questions.
+- Never guess missing personal information.
+- Empty profile fields mean information is unavailable.
+- Never let chat history override saved profile values.
+- Your assistant name is Shifra.
 - Give practical, copy-paste-ready code when useful.
-- Explain errors and fixes clearly.
-
-CONVERSATION:
 - Answer the user's actual question directly.
-- Avoid unnecessarily repeating the question.
 `;
 
 // ======================================================
-// FORMAT CHAT HISTORY
+// CHAT HISTORY
 // ======================================================
 
 const formatHistory = (history = []) => {
@@ -454,7 +756,10 @@ export const chatWithAI = async (req, res) => {
       profile: incomingProfile = {},
     } = req.body || {};
 
-    if (typeof message !== "string" || !message.trim()) {
+    if (
+      typeof message !== "string" ||
+      !message.trim()
+    ) {
       return res.status(400).json({
         success: false,
         message: "Message is required.",
@@ -463,22 +768,15 @@ export const chatWithAI = async (req, res) => {
 
     const userMessage = message.trim();
 
-    if (!process.env.GEMINI_API_KEY) {
-      console.error("GEMINI_API_KEY is missing.");
-
-      return res.status(503).json({
-        success: false,
-        message: "Gemini API key is not configured.",
-      });
-    }
+    // Save an explicit fact to Profile before answering.
+    await saveAutomaticMemory(userMessage);
 
     const language = detectLanguage(userMessage);
     const dateDetails = getCurrentDateDetails(language);
-    const modelName = getAIModel();
 
     const dbProfile = await getUserProfile();
 
-    const receivedFrontendProfile =
+    const frontendProfile =
       personalData &&
       typeof personalData === "object" &&
       Object.keys(personalData).length > 0
@@ -487,135 +785,153 @@ export const chatWithAI = async (req, res) => {
 
     const userProfile = mergeProfiles(
       dbProfile,
-      receivedFrontendProfile
+      frontendProfile
     );
 
-    console.log("PROFILE SENT TO AI:", {
+    console.log("PROFILE STATUS:", {
       nameAvailable: Boolean(userProfile.name),
+      emailAvailable: Boolean(userProfile.email),
+      mobileAvailable: Boolean(userProfile.mobile),
       villageAvailable: Boolean(userProfile.village),
       educationAvailable: Boolean(userProfile.education),
+      skillsAvailable: Boolean(userProfile.skills),
     });
 
-    // Handle time questions directly.
+    // Answer personal questions directly from saved profile.
+    const personalField = getPersonalField(userMessage);
+
+    if (personalField) {
+      return res.status(200).json({
+        success: true,
+        reply: getPersonalAnswer(
+          personalField,
+          userProfile,
+          language
+        ),
+        model: "mongodb-profile",
+        language,
+      });
+    }
+
+    // Handle date and time locally.
     if (isTimeQuestion(userMessage)) {
-      let reply;
-
-      if (language === "mr-IN") {
-        reply = `आत्ताची वेळ ${dateDetails.time} आहे.`;
-      } else if (language === "hi-IN") {
-        reply = `अभी का समय ${dateDetails.time} है।`;
-      } else {
-        reply = `The current time is ${dateDetails.time}.`;
-      }
+      const reply =
+        language === "mr-IN"
+          ? `आत्ताची वेळ ${dateDetails.time} आहे.`
+          : language === "hi-IN"
+            ? `अभी का समय ${dateDetails.time} है।`
+            : `The current time is ${dateDetails.time}.`;
 
       return res.status(200).json({
         success: true,
         reply,
-        model: modelName,
+        model: "local",
         language,
       });
     }
 
-    // Handle date questions directly.
     if (isDateQuestion(userMessage)) {
-      let reply;
-
-      if (language === "mr-IN") {
-        reply = `आजची तारीख ${dateDetails.date} आहे.`;
-      } else if (language === "hi-IN") {
-        reply = `आज की तारीख ${dateDetails.date} है।`;
-      } else {
-        reply = `Today's date is ${dateDetails.date}.`;
-      }
+      const reply =
+        language === "mr-IN"
+          ? `आजची तारीख ${dateDetails.date} आहे.`
+          : language === "hi-IN"
+            ? `आज की तारीख ${dateDetails.date} है।`
+            : `Today's date is ${dateDetails.date}.`;
 
       return res.status(200).json({
         success: true,
         reply,
-        model: modelName,
+        model: "local",
         language,
       });
     }
 
-    const systemPrompt = buildSystemPrompt({
-      profile: userProfile,
-      language,
-      dateDetails,
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(503).json({
+        success: false,
+        message: "Gemini API key is not configured.",
+      });
+    }
+
+    const modelName = getAIModel();
+
+    const model = genAI.getGenerativeModel({
+      model: modelName,
+      systemInstruction: buildSystemPrompt({
+        profile: userProfile,
+        language,
+        dateDetails,
+      }),
     });
 
     const formattedHistory = formatHistory(history);
 
-    const model = genAI.getGenerativeModel({
-      model: modelName,
-      systemInstruction: systemPrompt,
+    const chat = model.startChat({
+      history: formattedHistory,
+      generationConfig: {
+        maxOutputTokens: 1200,
+        temperature: 0.4,
+      },
     });
 
-    console.log("=================================");
-    console.log("NEXUS AI CHAT REQUEST");
-    console.log("Model:", modelName);
-    console.log("Language:", language);
-    console.log("History messages:", formattedHistory.length);
-    console.log("User message:", userMessage);
-    console.log("=================================");
+    console.log("NEXUS AI CHAT:", {
+      model: modelName,
+      language,
+      historyCount: formattedHistory.length,
+      userMessage,
+    });
 
-   // CHAT WITH AI
-   
-const chat = model.startChat({
-  history: formattedHistory,
-  generationConfig: {
-    maxOutputTokens: 1200,
-    temperature: 0.4,
-  },
-});
+    const result = await withGeminiRetry(
+      () => chat.sendMessage(userMessage),
+      3
+    );
 
-const geminiResult = await chat.sendMessage(userMessage);
+    const reply = result?.response?.text?.() || "";
 
-const reply = geminiResult?.response?.text?.() || "";
+    if (!reply.trim()) {
+      throw new Error("Gemini returned an empty response.");
+    }
 
-if (!reply.trim()) {
-  throw new Error("Gemini returned an empty response");
-}
-
-saveAutomaticMemory(userMessage).catch((error) => {
-  console.error("AUTO MEMORY ERROR:", error.message);
-});
-
-console.log("NEXUS AI RESPONSE:", reply);
-
-return res.status(200).json({
-  success: true,
-  reply: reply.trim(),
-  model: modelName,
-  language,
-});
+    return res.status(200).json({
+      success: true,
+      reply: reply.trim(),
+      model: modelName,
+      language,
+    });
   } catch (error) {
     console.error("CHAT AI ERROR:", error);
 
     const status = Number(error?.status) || 503;
-    let errorMessage = "AI service is temporarily unavailable.";
+
+    let errorMessage =
+      "AI service is temporarily unavailable.";
 
     if (status === 400) {
       errorMessage = "Invalid AI request.";
     } else if (status === 401 || status === 403) {
-      errorMessage = "Gemini API key is invalid or unauthorized.";
+      errorMessage =
+        "Gemini API key is invalid or unauthorized.";
     } else if (status === 404) {
-      errorMessage = "AI model was not found or is unavailable.";
+      errorMessage =
+        "AI model was not found or is unavailable.";
     } else if (status === 429) {
       errorMessage =
-        "AI rate limit or quota reached. Please try again later.";
-    } else if (status >= 500) {
-      errorMessage = "AI server error. Please try again.";
+        "Gemini quota or rate limit reached. Please try later.";
+    } else if ([502, 503, 504].includes(status)) {
+      errorMessage =
+        "Gemini is temporarily unavailable. Please try again.";
     }
 
-    return res
-      .status(status >= 400 && status < 600 ? status : 503)
-      .json({
-        success: false,
-        message: errorMessage,
-        error: {
-          status,
-          code: error?.code || null,
-        },
-      });
+    return res.status(
+      status >= 400 && status < 600 ? status : 503
+    ).json({
+      success: false,
+      message: errorMessage,
+      error: {
+        status,
+        code: error?.code || null,
+      },
+    });
   }
 };
 
@@ -625,12 +941,12 @@ return res.status(200).json({
 
 export const analyzeWithAI = async (req, res) => {
   try {
-    const {
-      text,
-      question = "",
-    } = req.body || {};
+    const { text, question = "" } = req.body || {};
 
-    if (typeof text !== "string" || !text.trim()) {
+    if (
+      typeof text !== "string" ||
+      !text.trim()
+    ) {
       return res.status(400).json({
         success: false,
         message: "File text is required.",
@@ -645,44 +961,40 @@ export const analyzeWithAI = async (req, res) => {
     }
 
     const modelName = getAIModel();
-    const dbProfile = await getUserProfile();
-    const profile = cleanProfile(dbProfile);
+    const profile = cleanProfile(await getUserProfile());
     const dateDetails = getCurrentDateDetails();
 
     const model = genAI.getGenerativeModel({
       model: modelName,
       systemInstruction: `
 You are Shifra, the AI assistant inside NEXUS-AI.
-
 Analyze the user's document carefully.
-Answer the user's question directly.
-Do not invent facts that are not in the document.
+Answer the question directly and do not invent facts.
 
-USER PROFILE FROM MONGODB MEMORIES:
+Saved user profile:
 ${JSON.stringify(profile, null, 2)}
 
-CURRENT DATE:
-${dateDetails.date}
-
-If the user asks about saved personal information, use the profile above.
-Do not guess empty profile fields.
+Current India date: ${dateDetails.date}
+Do not guess missing personal information.
 `,
     });
 
-    const documentText = text.slice(0, 30000);
-
     const userInput = `
 DOCUMENT:
-${documentText}
+${text.slice(0, 30000)}
 
 USER QUESTION:
 ${question || "Summarize and analyze this document."}
 `;
 
-    const result = await model.generateContent(userInput);
-    const reply = result.response.text();
+    const result = await withGeminiRetry(
+      () => model.generateContent(userInput),
+      3
+    );
 
-    if (!reply || !reply.trim()) {
+    const reply = result?.response?.text?.() || "";
+
+    if (!reply.trim()) {
       return res.status(502).json({
         success: false,
         message: "AI returned an empty response.",
@@ -702,105 +1014,5 @@ ${question || "Summarize and analyze this document."}
       message: "File analysis is temporarily unavailable.",
       error: error?.message || "Unknown error",
     });
-  }
-};
-
-// ======================================================
-// AUTOMATIC MEMORY
-// ======================================================
-
-const DEFAULT_USER_ID = "default-user";
-
-export const saveAutomaticMemory = async (userMessage) => {
-  try {
-    const settings = await Settings.findOne({
-      userId: DEFAULT_USER_ID,
-    }).lean();
-
-    if (settings?.autoMemory === false) {
-      console.log("Auto memory disabled.");
-      return;
-    }
-
-    if (
-      typeof userMessage !== "string" ||
-      !userMessage.trim()
-    ) {
-      return;
-    }
-
-    const model = genAI.getGenerativeModel({
-      model: getAIModel(),
-      generationConfig: {
-        responseMimeType: "application/json",
-        temperature: 0.1,
-      },
-    });
-
-    const prompt = `
-Extract only useful, durable facts explicitly stated by the user
-about themselves or their preferences.
-
-Rules:
-- Do not guess or invent facts.
-- Ignore questions and temporary information.
-- Do not save passwords, authentication secrets, financial credentials,
-  or sensitive personal information.
-- Use short, stable keys such as name, education, college, skills,
-  location, preferred_language.
-- Return only valid JSON.
-
-Format:
-{"memories":[{"key":"name","value":"Karan"}]}
-
-If there are no suitable facts:
-{"memories":[]}
-
-User message:
-${JSON.stringify(userMessage)}
-`;
-
-    const result = await model.generateContent(prompt);
-    const parsed = JSON.parse(result.response.text());
-
-    if (!Array.isArray(parsed.memories)) {
-      return;
-    }
-
-    for (const item of parsed.memories) {
-      if (
-        typeof item.key !== "string" ||
-        typeof item.value !== "string"
-      ) {
-        continue;
-      }
-
-      const key = item.key.trim().toLowerCase();
-      const value = item.value.trim();
-
-      if (
-        !key ||
-        !value ||
-        key.length > 100 ||
-        value.length > 1000
-      ) {
-        continue;
-      }
-
-      await Memory.findOneAndUpdate(
-        { key },
-        { $set: { value } },
-        {
-          upsert: true,
-          new: true,
-          runValidators: true,
-          setDefaultsOnInsert: true,
-        }
-      );
-    }
-
-    console.log("Auto memory processed successfully.");
-  } catch (error) {
-    console.error("AUTO MEMORY ERROR:", error.message);
   }
 };
