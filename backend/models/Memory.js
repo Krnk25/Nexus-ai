@@ -1,35 +1,21 @@
 
-import Memory from "../models/Memory.js";
+import mongoose from "mongoose";
 
-export const saveNameMemory = async (message) => {
-  try {
-    const match = message.match(
-      /(?:mera naam|mera name|my name is|my name|i am)\s+(.+?)(?:\s+hai|\s+he|\s+is)?[.!?]*$/i
-    );
+const memorySchema = new mongoose.Schema(
+  {
+    key: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    value: {
+      type: mongoose.Schema.Types.Mixed,
+      required: true,
+    },
+  },
+  { timestamps: true }
+);
 
-    if (!match) {
-      console.log("ℹ️ No name detected:", message);
-      return;
-    }
+const Memory = mongoose.model("Memory", memorySchema);
 
-    const name = match[1]
-      .replace(/\s+(hai|he|is)$/i, "")
-      .trim();
-
-    if (!name) return;
-
-    const saved = await Memory.findOneAndUpdate(
-      { key: "name" },
-      { $set: { value: name } },
-      {
-        upsert: true,
-        new: true,
-        runValidators: true,
-      }
-    );
-
-    console.log("✅ Name saved:", saved.key, saved.value);
-  } catch (error) {
-    console.error("❌ Name memory save failed:", error.message);
-  }
-};
+export default Memory;
