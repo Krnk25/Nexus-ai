@@ -1,104 +1,138 @@
-
 import { GoogleGenerativeAI } from "@google/generative-ai";
-
+import Memory from "../models/Memory.js";
 import Settings from "../models/Settings.js";
 
-// ======================================================
-// CONFIGURATION
-// ======================================================
-
-const genAI = new GoogleGenerativeAI(
-  process.env.GEMINI_API_KEY || ""
-);
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 const DEFAULT_USER_ID = "default-user";
-const DEFAULT_PROFILE_KEY = "default";
 
 const getAIModel = () =>
   process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
-const sleep = (ms) =>
-  new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// ======================================================
+// PROFILE FIELDS
+// ======================================================
 
 const PROFILE_FIELDS = [
   "name",
   "email",
   "mobile",
   "education",
+  "course",
   "college",
   "skills",
   "github",
   "linkedin",
   "portfolio",
+  "instagram_id",
   "location",
+  "address",
   "village",
   "bio",
   "fatherName",
   "motherName",
   "brotherName",
   "sister",
+  "career_goal",
+  "experience",
+  "projects",
+  "favorite_language",
 ];
 
 const PROFILE_ALIASES = {
   name: ["name", "my name", "mera naam", "mera name", "naam"],
   email: ["email", "email address", "my email"],
-  mobile: [
-    "mobile",
-    "phone",
-    "phone number",
-    "mobile number",
-    "my mobile",
-  ],
+  mobile: ["mobile", "phone", "phone number", "mobile number"],
   education: ["education", "qualification", "my education"],
-  college: ["college", "college name"],
+  course: ["course", "my course"],
+  college: ["college", "college name", "my college"],
   skills: ["skills", "my skills"],
   github: ["github", "github link"],
   linkedin: ["linkedin", "linkedin link"],
   portfolio: ["portfolio", "portfolio link"],
-  location: ["location", "city", "address"],
+  instagram_id: ["instagram_id", "instagram id", "instagram"],
+  location: ["location", "city"],
+  address: ["address", "full address", "my address"],
   village: ["village", "my village", "gaon", "mera gaon"],
-  bio: ["bio", "about me"],
+  bio: ["bio", "about me", "about"],
   fatherName: [
     "fatherName",
+    "father_name",
     "father name",
     "father",
     "papa name",
+    "papa",
   ],
   motherName: [
     "motherName",
+    "mother_name",
     "mother name",
     "mother",
     "maa name",
+    "maa",
   ],
   brotherName: [
     "brotherName",
+    "brother_name",
     "brother name",
+    "brother",
     "bhai name",
+    "bhai",
   ],
   sister: [
     "sister",
     "sisterName",
+    "sister_name",
     "sister name",
     "behen",
   ],
+  career_goal: ["career_goal", "career goal", "goal", "my goal"],
+  experience: ["experience", "work experience"],
+  projects: ["projects", "my projects"],
+  favorite_language: [
+    "favorite_language",
+    "favorite language",
+    "favourite language",
+    "favourite programming language",
+  ],
 };
 
+// Normalize keys so father_name and fatherName match.
 const normalizeKey = (key = "") =>
   String(key)
     .trim()
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}]/gu, "");
+    .replace(/[^a-z0-9]/g, "");
+
+const normalizeValue = (value) => {
+  if (typeof value === "string") return value.trim();
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(String).join(", ");
+  }
+
+  return "";
+};
 
 // ======================================================
 // GEMINI RETRY
 // ======================================================
 
 const withGeminiRetry = async (operation, maxAttempts = 3) => {
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
       return await operation();
     } catch (error) {
-      const status = Number(error?.status);
+      const status = Number(
+        error?.status || error?.response?.status
+      );
+
       const retryable = [408, 429, 500, 502, 503, 504].includes(
         status
       );
@@ -121,89 +155,149 @@ const withGeminiRetry = async (operation, maxAttempts = 3) => {
 };
 
 // ======================================================
-// EXTRACT PERSONAL INFORMATION
+// LOAD PROFILE FROM MONGODB MEMORY COLLECTION
+// ======================================================
+
+const getUserProfile = async () => {
+  const profile = Object.fromEntries(
+    PROFILE_FIELDS.map((field) => [field, ""])
+  );
+
+  try {
+    const memories = await Memory.find().lean();
+
+    const memoryMap = new Map();
+
+    for (const item of memories) {
+      if (!item?.key || item.value == null) continue;
+
+      const key = normalizeKey(item.key);
+      const value = normalizeValue(item.value);
+
+      if (!key || !value) continue;
+
+      // Keep the first non-empty value for each normalized key.
+      if (!memoryMap.has(key)) {
+        memoryMap.set(key, value);
+      }
+    }
+
+    for (const [field, aliases] of Object.entries(PROFILE_ALIASES)) {
+      for (const alias of aliases) {
+        const key = normalizeKey(alias);
+        const value = memoryMap.get(key);
+
+        if (value) {
+          profile[field] = value;
+          break;
+        }
+      }
+    }
+
+    console.log("PROFILE LOADED FROM MONGODB:", {
+      memoryCount: memories.length,
+      nameAvailable: Boolean(profile.name),
+      emailAvailable: Boolean(profile.email),
+      mobileAvailable: Boolean(profile.mobile),
+      villageAvailable: Boolean(profile.village),
+      fatherAvailable: Boolean(profile.fatherName),
+      motherAvailable: Boolean(profile.motherName),
+      brotherAvailable: Boolean(profile.brotherName),
+      educationAvailable: Boolean(profile.education),
+      collegeAvailable: Boolean(profile.college),
+      skillsAvailable: Boolean(profile.skills),
+      projectsAvailable: Boolean(profile.projects),
+    });
+  } catch (error) {
+    console.error("PROFILE FETCH ERROR:", error.message);
+  }
+
+  return profile;
+};
+
+// ======================================================
+// AUTOMATIC MEMORY EXTRACTION
 // ======================================================
 
 const MEMORY_PATTERNS = [
   {
     key: "name",
     regex:
-      /^(?:my\s+name\s+is|my\s+name|mera\s+naam|mera\s+name|मेरा\s+नाम|माझं\s+नाव|माझे\s+नाव)\s*(?:(?:is|hai|है|आहे)\s+)?(.+?)\s*[.!।]*$/i,
+      /^(?:my name is|my name|mera naam|mera name|मेरा नाम|माझं नाव|माझे नाव)\s+(?:(?:is|hai|है|आहे)\s+)?(.+?)[.!।]?$/i,
   },
   {
     key: "village",
     regex:
-      /^(?:my\s+village(?:\s+name)?(?:\s+is)?|mera\s+gaon|mera\s+village|माझं\s+गाव|माझे\s+गाव)\s+(.+?)\s*[.!।]*$/i,
+      /^(?:my village(?: name)?(?: is)?|mera gaon|mera village|माझं गाव|माझे गाव)\s+(.+?)[.!।]?$/i,
   },
   {
     key: "fatherName",
     regex:
-      /^(?:my\s+father(?:'s)?\s+name\s+is|father\s+name\s+is|mere\s+papa\s+ka\s+naam|mere\s+father\s+ka\s+naam|माझ्या\s+वडिलांचे\s+नाव)\s+(.+?)\s*[.!।]*$/i,
+      /^(?:my father's name is|my father name is|father name is|mere papa ka naam|mere father ka naam|माझ्या वडिलांचे नाव)\s+(.+?)[.!।]?$/i,
   },
   {
     key: "motherName",
     regex:
-      /^(?:my\s+mother(?:'s)?\s+name\s+is|mother\s+name\s+is|meri\s+maa\s+ka\s+naam|meri\s+mother\s+ka\s+naam|माझ्या\s+आईचे\s+नाव)\s+(.+?)\s*[.!।]*$/i,
+      /^(?:my mother's name is|my mother name is|mother name is|meri maa ka naam|meri mother ka naam|माझ्या आईचे नाव)\s+(.+?)[.!।]?$/i,
   },
   {
     key: "brotherName",
     regex:
-      /^(?:my\s+brother(?:'s)?\s+name\s+is|brother\s+name\s+is|mere\s+bhai\s+ka\s+naam|माझ्या\s+भावाचे\s+नाव)\s+(.+?)\s*[.!।]*$/i,
+      /^(?:my brother's name is|my brother name is|brother name is|mere bhai ka naam|माझ्या भावाचे नाव)\s+(.+?)[.!।]?$/i,
   },
   {
     key: "sister",
     regex:
-      /^(?:my\s+sister(?:'s)?\s+name\s+is|sister\s+name\s+is|meri\s+behen\s+ka\s+naam|माझ्या\s+बहिणीचे\s+नाव)\s+(.+?)\s*[.!।]*$/i,
+      /^(?:my sister's name is|my sister name is|sister name is|meri behen ka naam|माझ्या बहिणीचे नाव)\s+(.+?)[.!।]?$/i,
   },
   {
     key: "education",
     regex:
-      /^(?:my\s+education\s+is|my\s+qualification\s+is|meri\s+education(?:\s+hai)?|meri\s+qualification(?:\s+hai)?|माझे\s+शिक्षण)\s+(.+?)\s*[.!।]*$/i,
+      /^(?:my education is|my qualification is|meri education hai|meri qualification hai|माझे शिक्षण)\s+(.+?)[.!।]?$/i,
   },
   {
     key: "college",
     regex:
-      /^(?:my\s+college(?:\s+name)?\s+is|college\s+name\s+is|माझ्या\s+कॉलेजचे\s+नाव)\s+(.+?)\s*[.!।]*$/i,
+      /^(?:my college name is|my college is|college name is|माझ्या कॉलेजचे नाव)\s+(.+?)[.!।]?$/i,
   },
   {
     key: "email",
     regex:
-      /^(?:my\s+email(?:\s+address)?\s+is|email\s+is|mera\s+email(?:\s+address)?\s+hai)\s+([^\s]+@[^\s]+\.[^\s]+)\s*$/i,
+      /^(?:my email(?: address)? is|email is|mera email(?: address)? hai)\s+([^\s@]+@[^\s@]+\.[^\s@]+)[.!]?$/i,
   },
   {
     key: "mobile",
     regex:
-      /^(?:my\s+mobile(?:\s+number)?\s+is|my\s+phone\s+number\s+is|mera\s+mobile(?:\s+number)?\s+hai|mera\s+phone\s+number\s+hai)\s+([+\d][\d\s-]{7,18})\s*$/i,
+      /^(?:my mobile(?: number)? is|my phone number is|mera mobile(?: number)? hai|mera phone number hai)\s+([+\d][\d\s-]{7,18})[.!]?$/i,
   },
   {
     key: "skills",
     regex:
-      /^(?:my\s+skills\s+are|my\s+skills\s+is|meri\s+skills\s+hai|meri\s+skills\s+hain|माझी\s+कौशल्ये)\s+(.+?)\s*[.!।]*$/i,
+      /^(?:my skills are|my skills is|meri skills hai|meri skills hain|माझी कौशल्ये)\s+(.+?)[.!।]?$/i,
   },
   {
     key: "github",
     regex:
-      /^(?:my\s+github(?:\s+link)?\s+is|github\s+link\s+is)\s+(\S+)\s*$/i,
+      /^(?:my github(?: link)? is|github link is)\s+(\S+)[.!]?$/i,
   },
   {
     key: "linkedin",
     regex:
-      /^(?:my\s+linkedin(?:\s+link)?\s+is|linkedin\s+link\s+is)\s+(\S+)\s*$/i,
+      /^(?:my linkedin(?: link)? is|linkedin link is)\s+(\S+)[.!]?$/i,
   },
   {
     key: "portfolio",
     regex:
-      /^(?:my\s+portfolio(?:\s+link)?\s+is|portfolio\s+link\s+is)\s+(\S+)\s*$/i,
+      /^(?:my portfolio(?: link)? is|portfolio link is)\s+(\S+)[.!]?$/i,
   },
   {
     key: "location",
     regex:
-      /^(?:my\s+location\s+is|i\s+live\s+in|i\s+am\s+from|main\s+rehta\s+hoon|main\s+rehti\s+hoon|मी\s+राहतो|मी\s+राहते)\s+(.+?)\s*[.!।]*$/i,
+      /^(?:my location is|i live in|i am from|main rehta hoon|main rehti hoon|मी राहतो|मी राहते)\s+(.+?)[.!।]?$/i,
   },
   {
     key: "bio",
-    regex:
-      /^(?:my\s+bio\s+is|about\s+me\s+is)\s+(.+?)\s*[.!।]*$/i,
+    regex: /^(?:my bio is|about me is)\s+(.+?)[.!।]?$/i,
   },
 ];
 
@@ -215,21 +309,14 @@ const extractExplicitMemory = (message) => {
 
     if (!match?.[1]) continue;
 
-    let value = match[1]
+    const value = match[1]
       .trim()
       .replace(/[.!।]+$/, "")
       .trim();
 
-    value = value
-      .replace(
-        /\s+(?:hai|hain|hoon|ho|है|हैं|आहे|आहेत)$/i,
-        ""
-      )
-      .trim();
+    if (!value || value.length > 500) continue;
 
     if (
-      !value ||
-      value.length > 500 ||
       /^(what|why|how|when|where|who|kya|kaise|kyu|kab|kahan)\b/i.test(
         value
       )
@@ -237,7 +324,6 @@ const extractExplicitMemory = (message) => {
       continue;
     }
 
-    // Validate email values before saving.
     if (
       pattern.key === "email" &&
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
@@ -255,7 +341,7 @@ const extractExplicitMemory = (message) => {
 };
 
 // ======================================================
-// SAVE PERSONAL INFORMATION TO PROFILE
+// SAVE AUTOMATIC MEMORY
 // ======================================================
 
 export const saveAutomaticMemory = async (userMessage) => {
@@ -269,9 +355,7 @@ export const saveAutomaticMemory = async (userMessage) => {
 
     const extracted = extractExplicitMemory(userMessage);
 
-    if (!extracted) {
-      return null;
-    }
+    if (!extracted) return null;
 
     const settings = await Settings.findOne({
       userId: DEFAULT_USER_ID,
@@ -282,88 +366,50 @@ export const saveAutomaticMemory = async (userMessage) => {
       return null;
     }
 
-    if (!PROFILE_FIELDS.includes(extracted.key)) {
-      console.warn("Unsupported profile field:", extracted.key);
-      return null;
-    }
+    const aliases =
+      PROFILE_ALIASES[extracted.key] || [extracted.key];
 
-    const savedProfile = await Profile.findOneAndUpdate(
-      { profileKey: DEFAULT_PROFILE_KEY },
-      {
-        $set: {
-          [extracted.key]: extracted.value,
-        },
-      },
-      {
-        upsert: true,
-        new: true,
-        runValidators: true,
-        setDefaultsOnInsert: true,
-      }
-    );
+    const normalizedAliases = aliases.map(normalizeKey);
 
-    console.log("PROFILE FIELD SAVED:", {
-      key: extracted.key,
-      value: savedProfile[extracted.key],
-    });
-
-    return savedProfile;
-  } catch (error) {
-    console.error("AUTO PROFILE SAVE ERROR:", error.message);
-    return null;
-  }
-};
-
-// ======================================================
-// LOAD PROFILE FROM MONGODB
-// ======================================================
-
-const getUserProfile = async () => {
-  const emptyProfile = Object.fromEntries(
-    PROFILE_FIELDS.map((field) => [field, ""])
-  );
-
-  try {
-    const savedProfile = await Profile.findOne({
-      profileKey: DEFAULT_PROFILE_KEY,
+    const existing = await Memory.find({
+      key: { $exists: true },
     }).lean();
 
-    if (!savedProfile) {
-      console.log("No saved Profile document found.");
-      return emptyProfile;
+    const matching = existing.find((item) =>
+      normalizedAliases.includes(normalizeKey(item.key))
+    );
+
+    let saved;
+
+    if (matching) {
+      saved = await Memory.findByIdAndUpdate(
+        matching._id,
+        {
+          $set: {
+            value: extracted.value,
+          },
+        },
+        {
+          new: true,
+          runValidators: true,
+        }
+      );
+    } else {
+      saved = await Memory.create({
+        key: normalizeKey(extracted.key),
+        value: extracted.value,
+      });
     }
 
-    const profile = { ...emptyProfile };
-
-    for (const field of PROFILE_FIELDS) {
-      const value = savedProfile[field];
-
-      if (value == null) continue;
-
-      if (Array.isArray(value)) {
-        profile[field] = value.join(", ");
-      } else if (
-        typeof value === "string" ||
-        typeof value === "number"
-      ) {
-        profile[field] = String(value).trim();
-      }
-    }
-
-    console.log("PROFILE LOADED:", {
-      profileFound: true,
-      nameAvailable: Boolean(profile.name),
-      emailAvailable: Boolean(profile.email),
-      mobileAvailable: Boolean(profile.mobile),
-      villageAvailable: Boolean(profile.village),
-      educationAvailable: Boolean(profile.education),
-      skillsAvailable: Boolean(profile.skills),
+    console.log("AUTOMATIC MEMORY SAVED:", {
+      key: extracted.key,
+      saved: Boolean(saved),
     });
 
-    return profile;
+    return saved;
   } catch (error) {
-    console.error("PROFILE FETCH ERROR:", error.message);
-    return emptyProfile;
+    console.error("AUTO MEMORY SAVE ERROR:", error.message);
+    return null;
   }
 };
 
@@ -375,20 +421,7 @@ const cleanProfile = (input = {}) => {
   const result = {};
 
   for (const field of PROFILE_FIELDS) {
-    const value = input?.[field];
-
-    if (typeof value === "string") {
-      result[field] = value.trim();
-    } else if (Array.isArray(value)) {
-      result[field] = value.join(", ");
-    } else if (
-      typeof value === "number" &&
-      Number.isFinite(value)
-    ) {
-      result[field] = String(value);
-    } else {
-      result[field] = "";
-    }
+    result[field] = normalizeValue(input?.[field]);
   }
 
   return result;
@@ -402,7 +435,7 @@ const mergeProfiles = (
   const frontend = cleanProfile(frontendProfile);
   const merged = {};
 
-  // Database profile takes priority over frontend values.
+  // Database values take priority over frontend values.
   for (const field of PROFILE_FIELDS) {
     merged[field] = db[field] || frontend[field] || "";
   }
@@ -411,85 +444,118 @@ const mergeProfiles = (
 };
 
 // ======================================================
-// PERSONAL QUESTION DETECTION
+// DETECT PERSONAL QUESTIONS
 // ======================================================
 
 const PERSONAL_QUESTIONS = [
   {
     field: "name",
     regex:
-      /\b(?:my\s+name|what\s+is\s+my\s+name|what'?s\s+my\s+name|mera\s+(?:naam|name)|naam\s+kya|name\s+kya|who\s+am\s+i)\b|मेरा\s+नाम\s+क्या|माझं\s+नाव\s+काय|माझे\s+नाव\s+काय/i,
+      /\b(?:my name|what is my name|what's my name|mera (?:naam|name)|naam kya|name kya|who am i)\b|मेरा नाम क्या|माझं नाव काय|माझे नाव काय/i,
   },
   {
     field: "village",
     regex:
-      /\b(?:my\s+village|which\s+village|mera\s+gaon|mera\s+village|gaon\s+kya|village\s+name|where\s+do\s+i\s+live|mera\s+gaon\s+kya)\b|माझं\s+गाव|माझे\s+गाव|मेरा\s+गांव/i,
+      /\b(?:my village|which village|mera gaon|mera village|gaon kya|village name|where do i live|mera gaon kya)\b|माझं गाव|माझे गाव|मेरा गांव/i,
   },
   {
     field: "fatherName",
     regex:
-      /\b(?:my\s+father|father\s+name|papa\s+name|mere\s+papa|mere\s+father|mere\s+papa\s+ka\s+naam)\b|माझ्या\s+वडिलांचे\s+नाव|वडिलांचे\s+नाव/i,
+      /\b(?:my father|father name|papa name|mere papa|mere father|mere papa ka naam)\b|माझ्या वडिलांचे नाव|वडिलांचे नाव/i,
   },
   {
     field: "motherName",
     regex:
-      /\b(?:my\s+mother|mother\s+name|maa\s+name|meri\s+maa|meri\s+mother|meri\s+maa\s+ka\s+naam)\b|माझ्या\s+आईचे\s+नाव|आईचे\s+नाव/i,
+      /\b(?:my mother|mother name|maa name|meri maa|meri mother|meri maa ka naam)\b|माझ्या आईचे नाव|आईचे नाव/i,
   },
   {
     field: "brotherName",
     regex:
-      /\b(?:my\s+brother|brother\s+name|bhai\s+name|mere\s+bhai)\b|माझ्या\s+भावाचे\s+नाव|भावाचे\s+नाव/i,
+      /\b(?:my brother|brother name|bhai name|mere bhai)\b|माझ्या भावाचे नाव|भावाचे नाव/i,
   },
   {
     field: "sister",
     regex:
-      /\b(?:my\s+sister|sister\s+name|meri\s+behen)\b|माझ्या\s+बहिणीचे\s+नाव|बहिणीचे\s+नाव/i,
+      /\b(?:my sister|sister name|meri behen)\b|माझ्या बहिणीचे नाव|बहिणीचे नाव/i,
   },
   {
     field: "education",
     regex:
-      /\b(?:my\s+education|my\s+qualification|what\s+did\s+i\s+study|meri\s+education|meri\s+qualification|qualification\s+kya)\b|माझे\s+शिक्षण|माझी\s+शैक्षणिक\s+पात्रता/i,
+      /\b(?:my education|my qualification|what did i study|meri education|meri qualification|qualification kya)\b|माझे शिक्षण|माझी शैक्षणिक पात्रता/i,
   },
   {
     field: "college",
     regex:
-      /\b(?:my\s+college|college\s+name|which\s+college|mera\s+college)\b|माझे\s+कॉलेज|माझ्या\s+कॉलेजचे\s+नाव/i,
+      /\b(?:my college|college name|which college|mera college)\b|माझे कॉलेज|माझ्या कॉलेजचे नाव/i,
   },
   {
     field: "skills",
     regex:
-      /\b(?:my\s+skills|what\s+are\s+my\s+skills|meri\s+skills|meri\s+skill)\b|माझी\s+कौशल्ये|माझे\s+स्किल्स/i,
+      /\b(?:my skills|what are my skills|meri skills|meri skill)\b|माझी कौशल्ये|माझे स्किल्स/i,
   },
   {
     field: "email",
     regex:
-      /\b(?:my\s+email|my\s+email\s+address|what\s+is\s+my\s+email|what'?s\s+my\s+email|mera\s+email|meri\s+email|email\s+kya)\b/i,
+      /\b(?:my email|my email address|what is my email|what's my email|mera email|meri email|email kya)\b/i,
   },
   {
     field: "mobile",
     regex:
-      /\b(?:my\s+mobile|my\s+phone\s+number|my\s+mobile\s+number|mera\s+mobile|mera\s+number|mera\s+phone|mobile\s+number\s+kya)\b/i,
+      /\b(?:my mobile|my phone number|my mobile number|mera mobile|mera number|mera phone|mobile number kya)\b/i,
   },
   {
     field: "github",
-    regex: /\b(?:my\s+github|github\s+link|mera\s+github)\b/i,
+    regex: /\b(?:my github|github link|mera github)\b/i,
   },
   {
     field: "linkedin",
-    regex: /\b(?:my\s+linkedin|linkedin\s+link|mera\s+linkedin)\b/i,
+    regex: /\b(?:my linkedin|linkedin link|mera linkedin)\b/i,
   },
   {
     field: "portfolio",
-    regex: /\b(?:my\s+portfolio|portfolio\s+link)\b/i,
+    regex: /\b(?:my portfolio|portfolio link)\b/i,
   },
   {
     field: "location",
     regex:
-      /\b(?:my\s+location|where\s+am\s+i\s+from|my\s+address|meri\s+location)\b/i,
+      /\b(?:my location|where am i from|meri location)\b/i,
+  },
+  {
+    field: "address",
+    regex: /\b(?:my address|full address|address kya)\b/i,
+  },
+  {
+    field: "course",
+    regex: /\b(?:my course|which course|course kya)\b/i,
+  },
+  {
+    field: "career_goal",
+    regex:
+      /\b(?:my goal|career goal|mera goal|career ka goal)\b/i,
+  },
+  {
+    field: "experience",
+    regex:
+      /\b(?:my experience|work experience|experience kya)\b/i,
+  },
+  {
+    field: "projects",
+    regex:
+      /\b(?:my projects|which projects|projects kya)\b/i,
+  },
+  {
+    field: "favorite_language",
+    regex:
+      /\b(?:my favorite language|my favourite language|favorite programming language)\b/i,
+  },
+  {
+    field: "instagram_id",
+    regex:
+      /\b(?:my instagram|instagram id|instagram username)\b/i,
   },
   {
     field: "bio",
-    regex: /\b(?:my\s+bio|about\s+me)\b/i,
+    regex: /\b(?:my bio|about me)\b/i,
   },
 ];
 
@@ -522,8 +588,16 @@ const getPersonalAnswer = (field, profile, language) => {
       linkedin: "तुमची LinkedIn लिंक",
       portfolio: "तुमची पोर्टफोलिओ लिंक",
       location: "तुमचं ठिकाण",
+      address: "तुमचा पत्ता",
+      course: "तुमचा कोर्स",
+      career_goal: "तुमचं करिअर ध्येय",
+      experience: "तुमचा अनुभव",
+      projects: "तुमचे प्रोजेक्ट्स",
+      favorite_language: "तुमची आवडती प्रोग्रामिंग भाषा",
+      instagram_id: "तुमचा Instagram ID",
       bio: "तुमची माहिती",
     },
+
     "hi-IN": {
       name: "Aapka naam",
       village: "Aapka gaon",
@@ -540,8 +614,16 @@ const getPersonalAnswer = (field, profile, language) => {
       linkedin: "Aapka LinkedIn link",
       portfolio: "Aapka portfolio link",
       location: "Aapki location",
+      address: "Aapka address",
+      course: "Aapka course",
+      career_goal: "Aapka career goal",
+      experience: "Aapka experience",
+      projects: "Aapke projects",
+      favorite_language: "Aapki favourite programming language",
+      instagram_id: "Aapki Instagram ID",
       bio: "Aapki profile information",
     },
+
     "en-IN": {
       name: "Your name",
       village: "Your village",
@@ -558,6 +640,13 @@ const getPersonalAnswer = (field, profile, language) => {
       linkedin: "Your LinkedIn link",
       portfolio: "Your portfolio link",
       location: "Your location",
+      address: "Your address",
+      course: "Your course",
+      career_goal: "Your career goal",
+      experience: "Your experience",
+      projects: "Your projects",
+      favorite_language: "Your favourite programming language",
+      instagram_id: "Your Instagram ID",
       bio: "Your profile information",
     },
   };
@@ -614,6 +703,7 @@ const detectLanguage = (text = "") => {
     "mujhe",
     "kya",
     "kaise",
+    "kyu",
     "hai",
     "hain",
     "batao",
@@ -628,15 +718,11 @@ const detectLanguage = (text = "") => {
     "kahan",
   ];
 
-  if (
-    hinglishWords.some((word) =>
-      new RegExp(`\\b${word}\\b`, "i").test(lower)
-    )
-  ) {
-    return "hi-IN";
-  }
-
-  return "en-IN";
+  return hinglishWords.some((word) =>
+    new RegExp(`\\b${word}\\b`, "i").test(lower)
+  )
+    ? "hi-IN"
+    : "en-IN";
 };
 
 // ======================================================
@@ -654,6 +740,7 @@ const getCurrentDateDetails = (locale = "en-IN") => {
       month: "long",
       year: "numeric",
     }),
+
     time: now.toLocaleTimeString(locale, {
       timeZone: "Asia/Kolkata",
       hour: "2-digit",
@@ -699,6 +786,7 @@ const buildSystemPrompt = ({
 You are Shifra, the AI virtual assistant inside NEXUS-AI.
 
 Be friendly, helpful, concise, and accurate.
+
 Reply in the user's language: ${language}.
 Use Hindi/Hinglish for Hindi or Hinglish, Marathi for Marathi,
 and English for English.
@@ -756,10 +844,7 @@ export const chatWithAI = async (req, res) => {
       profile: incomingProfile = {},
     } = req.body || {};
 
-    if (
-      typeof message !== "string" ||
-      !message.trim()
-    ) {
+    if (typeof message !== "string" || !message.trim()) {
       return res.status(400).json({
         success: false,
         message: "Message is required.",
@@ -768,7 +853,7 @@ export const chatWithAI = async (req, res) => {
 
     const userMessage = message.trim();
 
-    // Save an explicit fact to Profile before answering.
+    // Save an explicitly provided personal fact.
     await saveAutomaticMemory(userMessage);
 
     const language = detectLanguage(userMessage);
@@ -790,9 +875,10 @@ export const chatWithAI = async (req, res) => {
 
     console.log("PROFILE STATUS:", {
       nameAvailable: Boolean(userProfile.name),
-      emailAvailable: Boolean(userProfile.email),
-      mobileAvailable: Boolean(userProfile.mobile),
       villageAvailable: Boolean(userProfile.village),
+      fatherAvailable: Boolean(userProfile.fatherName),
+      motherAvailable: Boolean(userProfile.motherName),
+      brotherAvailable: Boolean(userProfile.brotherName),
       educationAvailable: Boolean(userProfile.education),
       skillsAvailable: Boolean(userProfile.skills),
     });
@@ -813,7 +899,7 @@ export const chatWithAI = async (req, res) => {
       });
     }
 
-    // Handle date and time locally.
+    // Handle time questions locally.
     if (isTimeQuestion(userMessage)) {
       const reply =
         language === "mr-IN"
@@ -830,6 +916,7 @@ export const chatWithAI = async (req, res) => {
       });
     }
 
+    // Handle date questions locally.
     if (isDateQuestion(userMessage)) {
       const reply =
         language === "mr-IN"
@@ -864,10 +951,8 @@ export const chatWithAI = async (req, res) => {
       }),
     });
 
-    const formattedHistory = formatHistory(history);
-
     const chat = model.startChat({
-      history: formattedHistory,
+      history: formatHistory(history),
       generationConfig: {
         maxOutputTokens: 1200,
         temperature: 0.4,
@@ -877,10 +962,10 @@ export const chatWithAI = async (req, res) => {
     console.log("NEXUS AI CHAT:", {
       model: modelName,
       language,
-      historyCount: formattedHistory.length,
       userMessage,
     });
 
+    // Keep result declared in this scope.
     const result = await withGeminiRetry(
       () => chat.sendMessage(userMessage),
       3
@@ -901,19 +986,17 @@ export const chatWithAI = async (req, res) => {
   } catch (error) {
     console.error("CHAT AI ERROR:", error);
 
-    const status = Number(error?.status) || 503;
+    const status =
+      Number(error?.status || error?.response?.status) || 503;
 
-    let errorMessage =
-      "AI service is temporarily unavailable.";
+    let errorMessage = "AI service is temporarily unavailable.";
 
     if (status === 400) {
       errorMessage = "Invalid AI request.";
     } else if (status === 401 || status === 403) {
-      errorMessage =
-        "Gemini API key is invalid or unauthorized.";
+      errorMessage = "Gemini API key is invalid or unauthorized.";
     } else if (status === 404) {
-      errorMessage =
-        "AI model was not found or is unavailable.";
+      errorMessage = "AI model was not found or is unavailable.";
     } else if (status === 429) {
       errorMessage =
         "Gemini quota or rate limit reached. Please try later.";
@@ -922,16 +1005,16 @@ export const chatWithAI = async (req, res) => {
         "Gemini is temporarily unavailable. Please try again.";
     }
 
-    return res.status(
-      status >= 400 && status < 600 ? status : 503
-    ).json({
-      success: false,
-      message: errorMessage,
-      error: {
-        status,
-        code: error?.code || null,
-      },
-    });
+    return res
+      .status(status >= 400 && status < 600 ? status : 503)
+      .json({
+        success: false,
+        message: errorMessage,
+        error: {
+          status,
+          code: error?.code || null,
+        },
+      });
   }
 };
 
@@ -943,10 +1026,7 @@ export const analyzeWithAI = async (req, res) => {
   try {
     const { text, question = "" } = req.body || {};
 
-    if (
-      typeof text !== "string" ||
-      !text.trim()
-    ) {
+    if (typeof text !== "string" || !text.trim()) {
       return res.status(400).json({
         success: false,
         message: "File text is required.",
@@ -961,20 +1041,25 @@ export const analyzeWithAI = async (req, res) => {
     }
 
     const modelName = getAIModel();
+
     const profile = cleanProfile(await getUserProfile());
     const dateDetails = getCurrentDateDetails();
 
     const model = genAI.getGenerativeModel({
       model: modelName,
+
       systemInstruction: `
 You are Shifra, the AI assistant inside NEXUS-AI.
+
 Analyze the user's document carefully.
-Answer the question directly and do not invent facts.
+Answer the question directly.
+Do not invent facts.
 
 Saved user profile:
 ${JSON.stringify(profile, null, 2)}
 
 Current India date: ${dateDetails.date}
+
 Do not guess missing personal information.
 `,
     });
