@@ -9,7 +9,7 @@ const connectDB = async () => {
     const mongoURI = process.env.MONGODB_URI;
 
     if (!mongoURI) {
-      throw new Error("MONGODB_URI is missing in environment variables");
+      throw new Error("MONGODB_URI is missing");
     }
 
     await mongoose.connect(mongoURI, {
@@ -17,8 +17,17 @@ const connectDB = async () => {
     });
 
     console.log("✅ MongoDB Connected");
-    console.log("📦 Database:", mongoose.connection.name);
-    console.log("🔗 Host:", mongoose.connection.host);
+    console.log("📦 DATABASE:", mongoose.connection.name);
+    console.log("🔗 HOST:", mongoose.connection.host);
+
+    const collections = await mongoose.connection.db
+      .listCollections()
+      .toArray();
+
+    console.log(
+      "📚 COLLECTIONS:",
+      collections.map((item) => item.name)
+    );
 
     return true;
   } catch (error) {

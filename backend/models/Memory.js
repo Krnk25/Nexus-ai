@@ -1,3 +1,4 @@
+
 import mongoose from "mongoose";
 
 const memorySchema = new mongoose.Schema(
@@ -13,7 +14,10 @@ const memorySchema = new mongoose.Schema(
       required: true,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    collection: "memories",
+  }
 );
 
 export default mongoose.model("Memory", memorySchema);
