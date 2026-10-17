@@ -5,9 +5,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
-import {
-  transcribeVoice,
-} from "../controllers/voiceController.js";
+import { transcribeVoice } from "../controllers/voiceController.js";
 
 const router = express.Router();
 
@@ -26,9 +24,13 @@ const storage = multer.diskStorage({
   },
 
   filename: (req, file, callback) => {
+    const extension = file.mimetype.includes("mp4")
+      ? "mp4"
+      : "webm";
+
     callback(
       null,
-      `${Date.now()}-${Math.round(Math.random() * 1e9)}.webm`
+      `${Date.now()}-${Math.round(Math.random() * 1e9)}.${extension}`
     );
   },
 });

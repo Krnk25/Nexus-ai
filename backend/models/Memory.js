@@ -1,4 +1,3 @@
-
 import mongoose from "mongoose";
 
 const memorySchema = new mongoose.Schema(
@@ -6,16 +5,15 @@ const memorySchema = new mongoose.Schema(
     key: {
       type: String,
       required: true,
+      unique: true,
       trim: true,
     },
     value: {
-      type: mongoose.Schema.Types.Mixed,
+      type: String,
       required: true,
     },
   },
   { timestamps: true }
 );
 
-const Memory = mongoose.model("Memory", memorySchema);
-
-export default Memory;
+export default mongoose.model("Memory", memorySchema);
