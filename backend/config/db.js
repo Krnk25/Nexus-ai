@@ -14,55 +14,71 @@ const connectDB = async () => {
       );
     }
 
-    // Connect to MongoDB
+    // Connect to MongoDB Atlas
     await mongoose.connect(mongoURI, {
       serverSelectionTimeoutMS: 30000,
     });
 
-    console.log("=================================");
-    console.log("✅ MONGODB CONNECTED");
+    const db = mongoose.connection.db;
+
+    if (!db) {
+      throw new Error("MongoDB database connection is unavailable");
+    }
+
+    console.log("\n=================================");
+    console.log("       MONGODB DIAGNOSTICS");
     console.log("=================================");
 
+    console.log("CONNECTION STATUS:", mongoose.connection.readyState);
     console.log("DATABASE:", mongoose.connection.name);
     console.log("HOST:", mongoose.connection.host);
-    console.log("READY STATE:", mongoose.connection.readyState);
 
-    // Verify that the memories collection exists
-    const collections = await mongoose.connection.db
-      .listCollections()
-      .toArray();
+    // List collections
+    const collections = await db.listCollections().toArray();
 
     console.log(
       "COLLECTIONS:",
       collections.map((collection) => collection.name)
     );
 
-    // Read memories directly from MongoDB, bypassing Mongoose model
-    const memoriesCollection = mongoose.connection.db.collection(
-      "memories"
-    );
+    // Direct MongoDB query, bypassing Mongoose model
+    const memoriesCollection = db.collection("memories");
 
-    const totalMemories = await memoriesCollection.countDocuments();
+    const rawCount = await memoriesCollection.countDocuments({});
 
-    const memoryRecords = await memoriesCollection
+    const rawKeys = await memoriesCollection
       .find({}, { projection: { key: 1, _id: 0 } })
       .toArray();
 
-    console.log("RAW MEMORY COUNT:", totalMemories);
-    console.log(
-      "RAW MEMORY KEYS:",
-      memoryRecords.map((memory) => memory.key)
+    // Check whether the known education record exists
+    const educationRecord = await memoriesCollection.findOne(
+      { key: "education" },
+      { projection: { key: 1, _id: 0 } }
     );
 
-    // Verify the Memory model sees the same collection
-    const Memory = mongoose.model("Memory");
+    console.log("---------------------------------");
+    console.log("RAW MEMORY COUNT:", rawCount);
+    console.log(
+      "RAW MEMORY KEYS:",
+      rawKeys.map((item) => item.key)
+    );
+    console.log(
+      "EDUCATION RECORD EXISTS:",
+      Boolean(educationRecord)
+    );
+
+    // Check Mongoose model
+    const Memory =
+      mongoose.models.Memory ||
+      (await import("../models/Memory.js")).default;
+
+    console.log("---------------------------------");
+    console.log("MODEL COLLECTION:", Memory.collection.name);
 
     const modelCount = await Memory.countDocuments();
 
     console.log("MODEL MEMORY COUNT:", modelCount);
-    console.log("MODEL COLLECTION:", Memory.collection.name);
-
-    console.log("=================================");
+    console.log("=================================\n");
 
     return true;
   } catch (error) {
