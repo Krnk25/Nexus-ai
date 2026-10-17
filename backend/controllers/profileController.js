@@ -1,6 +1,26 @@
 
 import Memory from "../models/Memory.js";
 
+// Normalize keys so father_name, fatherName and "Father Name"
+// can all match the same profile field.
+const normalizeKey = (key = "") =>
+  String(key).toLowerCase().replace(/[^a-z0-9]/g, "");
+
+const normalizeValue = (value) => {
+  if (value === null || value === undefined) return "";
+
+  if (Array.isArray(value)) {
+    return value.map(normalizeValue).filter(Boolean).join(", ");
+  }
+
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+
+  return String(value).trim();
+};
+
+// Profile fields and their supported aliases.
 const profileFields = {
   name: ["name", "my name", "mera naam", "mera name"],
   email: ["email", "email address"],
@@ -13,38 +33,38 @@ const profileFields = {
   linkedin: ["linkedin", "linkedin link"],
   portfolio: ["portfolio", "portfolio link"],
   instagram_id: ["instagram_id", "instagram id", "instagram"],
-  location: ["location", "city"],
-  address: ["address", "full address", "my address"],
+  location: ["location", "city", "current location"],
+  address: ["address", "full address", "home address"],
   village: ["village", "my village", "gaon", "mera gaon"],
   bio: ["bio", "about me", "about"],
   fatherName: [
-    "fathername",
+    "fatherName",
     "father name",
     "father",
     "papa",
     "papa name",
-    "father_name"
+    "father_name",
   ],
   motherName: [
-    "mothername",
+    "motherName",
     "mother name",
     "mother",
     "maa",
-    "mother_name"
+    "mother_name",
   ],
   brotherName: [
-    "brothername",
+    "brotherName",
     "brother name",
     "brother",
     "bhai",
-    "brother_name"
+    "brother_name",
   ],
   sister: [
     "sister",
-    "sistername",
+    "sisterName",
     "sister name",
     "behen",
-    "sister_name"
+    "sister_name",
   ],
   career_goal: ["career_goal", "career goal", "goal", "my goal"],
   experience: ["experience", "work experience"],
@@ -53,42 +73,29 @@ const profileFields = {
     "favorite_language",
     "favorite language",
     "favourite language",
-    "favourite programming language"
-  ]
+    "favourite programming language",
+  ],
 };
 
-const normalizeKey = (key) =>
-  String(key ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
+// Create an empty profile with consistent fields.
+const createEmptyProfile = () =>
+  Object.fromEntries(
+    Object.keys(profileFields).map((field) => [field, ""])
+  );
 
-const normalizeValue = (value) => {
-  if (typeof value === "string") return value.trim();
-
-  if (typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((item) => String(item)).join(", ").trim();
-  }
-
-  return "";
-};
-
-// Build a profile from the existing memories collection.
-const buildProfile = (memories) => {
-  const profile = {};
-
-  for (const field of Object.keys(profileFields)) {
-    profile[field] = "";
-  }
-
-  // Keep the newest non-empty value for each normalized key.
+// Convert MongoDB memory records into a profile object.
+// If aliases are duplicated, the most recently updated record wins.
+const buildProfile = (memories = []) => {
+  const profile = createEmptyProfile();
   const memoryMap = new Map();
 
-  for (const memory of memories) {
+  const sortedMemories = [...memories].sort((a, b) => {
+    const dateA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+    const dateB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+    return dateB - dateA;
+  });
+
+  for (const memory of sortedMemories) {
     const key = normalizeKey(memory.key);
     const value = normalizeValue(memory.value);
 
@@ -97,13 +104,12 @@ const buildProfile = (memories) => {
     }
   }
 
-  // Read values using each field's aliases.
   for (const [field, aliases] of Object.entries(profileFields)) {
     for (const alias of aliases) {
-      const key = normalizeKey(alias);
+      const value = memoryMap.get(normalizeKey(alias));
 
-      if (memoryMap.has(key)) {
-        profile[field] = memoryMap.get(key);
+      if (value) {
+        profile[field] = value;
         break;
       }
     }
@@ -115,122 +121,171 @@ const buildProfile = (memories) => {
 // GET /api/profile
 export const getProfile = async (req, res) => {
   try {
-    const memories = await Memory.find().lean();
-
-    console.log("TOTAL MEMORIES:", memories.length);
-    console.log(
-      "MEMORY DATA:",
-      memories.map(({ key, value }) => ({ key, value }))
-    );
-
-    const profile = buildProfile(memories);
-
-    return res.status(200).json({
-      success: true,
-      profile,
-      debug: {
-        database: Memory.db.name,
-        collection: Memory.collection.name,
-        totalMemories: memories.length,
-        keys: memories.map((item) => item.key)
-      }
-    });
-  } catch (error) {
-    console.error("GET PROFILE ERROR:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
-// POST /api/profile
-export const saveProfile = async (req, res) => {
-  try {
-    const data = req.body;
-
-    if (
-      !data ||
-      typeof data !== "object" ||
-      Array.isArray(data)
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Please provide profile data as a JSON object."
-      });
-    }
-
-    const fieldsToSave = Object.keys(profileFields).filter(
-      (field) =>
-        Object.prototype.hasOwnProperty.call(data, field) &&
-        data[field] !== undefined &&
-        data[field] !== null
-    );
-
-    if (fieldsToSave.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "No valid profile fields received."
-      });
-    }
-
-    for (const field of fieldsToSave) {
-      const value = normalizeValue(data[field]);
-
-      // Don't overwrite existing data with an empty value.
-      if (!value) continue;
-
-      const aliases = profileFields[field].map(normalizeKey);
-      const canonicalKey = normalizeKey(field);
-
-      // Update an existing matching memory key where possible.
-      const existingMemory = await Memory.findOne({
-        key: {
-          $in: aliases
-        }
-      }).sort({ updatedAt: -1, createdAt: -1 });
-
-      if (existingMemory) {
-        existingMemory.value = value;
-        await existingMemory.save();
-      } else {
-        await Memory.findOneAndUpdate(
-          { key: canonicalKey },
-          { $set: { value } },
-          {
-            upsert: true,
-            new: true,
-            runValidators: true,
-            setDefaultsOnInsert: true
-          }
-        );
-      }
-    }
-
-    // Read the updated collection and return the complete profile.
     const memories = await Memory.find()
       .sort({ updatedAt: -1, createdAt: -1 })
       .lean();
 
+    // Log field names only; never log private profile values.
+    console.log("PROFILE DEBUG:", {
+      database: Memory.db.name,
+      collection: Memory.collection.name,
+      totalMemories: memories.length,
+      keys: memories.map((item) => item.key),
+    });
+
     const profile = buildProfile(memories);
 
     return res.status(200).json({
       success: true,
-      message: "Profile saved successfully.",
       profile,
-      source: "memories"
     });
   } catch (error) {
-    console.error("SAVE PROFILE ERROR:", error);
+    console.error("GET PROFILE ERROR:", error.message);
 
     return res.status(500).json({
       success: false,
-      message: error.message || "Failed to save profile."
+      message: "Failed to fetch profile",
+    });
+  }
+};
+
+// POST /api/profile
+// Save one or more profile fields.
+export const saveProfile = async (req, res) => {
+  try {
+    const data = req.body;
+
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide valid profile data",
+      });
+    }
+
+    const savedFields = [];
+
+    for (const [field, rawValue] of Object.entries(data)) {
+      const value = normalizeValue(rawValue);
+
+      if (!value) continue;
+
+      const normalizedField = normalizeKey(field);
+
+      const matchedField = Object.entries(profileFields).find(
+        ([profileField, aliases]) =>
+          normalizeKey(profileField) === normalizedField ||
+          aliases.some(
+            (alias) => normalizeKey(alias) === normalizedField
+          )
+      );
+
+      // Keep unknown keys usable as memories too.
+      const canonicalKey = matchedField
+        ? matchedField[0]
+        : field.trim();
+
+      if (!canonicalKey) continue;
+
+      await Memory.findOneAndUpdate(
+        { key: canonicalKey },
+        { $set: { value } },
+        {
+          upsert: true,
+          new: true,
+          runValidators: true,
+          setDefaultsOnInsert: true,
+        }
+      );
+
+      savedFields.push(canonicalKey);
+    }
+
+    const memories = await Memory.find()
+      .sort({ updatedAt: -1, createdAt: -1 })
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      message: "Profile saved successfully",
+      savedFields,
+      profile: buildProfile(memories),
+    });
+  } catch (error) {
+    console.error("SAVE PROFILE ERROR:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to save profile",
     });
   }
 };
 
 // PUT /api/profile
+// Update existing fields or create missing fields.
 export const updateProfile = async (req, res) => {
-  return saveProfile(req, res);
+  try {
+    const data = req.body;
+
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide valid profile data",
+      });
+    }
+
+    const savedFields = [];
+
+    for (const [field, rawValue] of Object.entries(data)) {
+      const value = normalizeValue(rawValue);
+
+      if (!value) continue;
+
+      const normalizedField = normalizeKey(field);
+
+      const matchedField = Object.entries(profileFields).find(
+        ([profileField, aliases]) =>
+          normalizeKey(profileField) === normalizedField ||
+          aliases.some(
+            (alias) => normalizeKey(alias) === normalizedField
+          )
+      );
+
+      const canonicalKey = matchedField
+        ? matchedField[0]
+        : field.trim();
+
+      if (!canonicalKey) continue;
+
+      await Memory.findOneAndUpdate(
+        { key: canonicalKey },
+        { $set: { value } },
+        {
+          upsert: true,
+          new: true,
+          runValidators: true,
+          setDefaultsOnInsert: true,
+        }
+      );
+
+      savedFields.push(canonicalKey);
+    }
+
+    const memories = await Memory.find()
+      .sort({ updatedAt: -1, createdAt: -1 })
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      message: "Profile updated successfully",
+      savedFields,
+      profile: buildProfile(memories),
+    });
+  } catch (error) {
+    console.error("UPDATE PROFILE ERROR:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update profile",
+    });
+  }
 };
