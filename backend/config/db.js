@@ -17,19 +17,25 @@ const connectDB = async () => {
     // Connect to MongoDB Atlas
     await mongoose.connect(mongoURI, {
       serverSelectionTimeoutMS: 30000,
+      connectTimeoutMS: 30000,
     });
 
     const db = mongoose.connection.db;
 
     if (!db) {
-      throw new Error("MongoDB database connection is unavailable");
+      throw new Error(
+        "MongoDB database connection is unavailable"
+      );
     }
 
     console.log("\n=================================");
     console.log("       MONGODB DIAGNOSTICS");
     console.log("=================================");
 
-    console.log("CONNECTION STATUS:", mongoose.connection.readyState);
+    console.log(
+      "CONNECTION STATUS:",
+      mongoose.connection.readyState
+    );
     console.log("DATABASE:", mongoose.connection.name);
     console.log("HOST:", mongoose.connection.host);
 
@@ -41,20 +47,15 @@ const connectDB = async () => {
       collections.map((collection) => collection.name)
     );
 
-    // Direct MongoDB query, bypassing Mongoose model
+    // Read memories directly from MongoDB
     const memoriesCollection = db.collection("memories");
 
-    const rawCount = await memoriesCollection.countDocuments({});
+    const rawCount =
+      await memoriesCollection.countDocuments({});
 
     const rawKeys = await memoriesCollection
       .find({}, { projection: { key: 1, _id: 0 } })
       .toArray();
-
-    // Check whether the known education record exists
-    const educationRecord = await memoriesCollection.findOne(
-      { key: "education" },
-      { projection: { key: 1, _id: 0 } }
-    );
 
     console.log("---------------------------------");
     console.log("RAW MEMORY COUNT:", rawCount);
@@ -62,12 +63,19 @@ const connectDB = async () => {
       "RAW MEMORY KEYS:",
       rawKeys.map((item) => item.key)
     );
+
+    const educationRecord =
+      await memoriesCollection.findOne(
+        { key: "education" },
+        { projection: { key: 1, _id: 0 } }
+      );
+
     console.log(
       "EDUCATION RECORD EXISTS:",
       Boolean(educationRecord)
     );
 
-    // Check Mongoose model
+    // Check Mongoose Memory model
     const Memory =
       mongoose.models.Memory ||
       (await import("../models/Memory.js")).default;
@@ -82,8 +90,13 @@ const connectDB = async () => {
 
     return true;
   } catch (error) {
-    console.error("❌ MONGODB CONNECTION ERROR:", error.message);
-    return false;
+    console.error(
+      "❌ MONGODB CONNECTION ERROR:",
+      error.message
+    );
+
+    // Important: propagate the error to server.js
+    throw error;
   }
 };
 

@@ -31,23 +31,13 @@ console.log("=================================");
 
 console.log(
   "OPENAI_API_KEY:",
-  process.env.OPENAI_API_KEY ? "YES ✅" : "NO ❌"
+  process.env.OPENAI_API_KEY ? "YES" : "NO"
 );
 
 console.log(
   "MONGODB_URI:",
-  process.env.MONGODB_URI ? "YES ✅" : "NO ❌"
+  process.env.MONGODB_URI ? "YES" : "NO"
 );
-
-
-
-
-
-// ========================================
-// DATABASE
-// ========================================
-
-connectDB();
 
 // ========================================
 // EXPRESS APP
@@ -80,14 +70,14 @@ app.use(express.json({ limit: "10mb" }));
 app.get("/", (req, res) => {
   res.json({
     success: true,
-    message: "Nexus AI Backend Running 🚀",
+    message: "Nexus AI Backend Running",
   });
 });
 
 app.get("/api", (req, res) => {
   res.json({
     success: true,
-    message: "Nexus AI API Running 🚀",
+    message: "Nexus AI API Running",
   });
 });
 
@@ -113,7 +103,7 @@ app.use("/api/profile", profileRoutes);
 app.get("/api/ai/test", (req, res) => {
   res.json({
     success: true,
-    message: "AI route is working 🚀",
+    message: "AI route is working",
   });
 });
 
@@ -133,7 +123,11 @@ app.use((req, res) => {
 // ========================================
 
 app.use((err, req, res, next) => {
-  console.error("❌ Server Error:", err);
+  console.error("Server Error:", err);
+
+  if (res.headersSent) {
+    return next(err);
+  }
 
   res.status(500).json({
     success: false,
@@ -143,16 +137,31 @@ app.use((err, req, res, next) => {
 });
 
 // ========================================
-// SERVER
+// START SERVER AFTER DATABASE CONNECTION
 // ========================================
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log("---------------------------------");
-  console.log("🚀 Nexus AI Backend running");
-  console.log(`🌐 Port: ${PORT}`);
-  console.log(`🔗 http://localhost:${PORT}`);
-  console.log("---------------------------------");
-});
+const startServer = async () => {
+  try {
+    await connectDB();
 
+    console.log("MongoDB connected successfully");
+
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log("---------------------------------");
+      console.log("Nexus AI Backend running");
+      console.log(`Port: ${PORT}`);
+      console.log("---------------------------------");
+    });
+  } catch (error) {
+    console.error(
+      "MongoDB connection failed:",
+      error.message
+    );
+
+    process.exit(1);
+  }
+};
+
+startServer();
