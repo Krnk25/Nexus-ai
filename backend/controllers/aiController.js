@@ -165,30 +165,47 @@ const getUserProfile = async () => {
 
   try {
     const memories = await Memory.find().lean();
-
     const memoryMap = new Map();
 
+    // Profile API aur old automatic memory dono support karo.
     for (const item of memories) {
       if (!item?.key || item.value == null) continue;
 
-      const key = normalizeKey(item.key);
+      let rawKey = String(item.key).trim();
+      let isProfileRecord = false;
+
+      // Example: profile:default-user:name -> name
+      const profileMatch = rawKey.match(
+        /^profile:default-user:(.+)$/i
+      );
+
+      if (profileMatch) {
+        rawKey = profileMatch[1];
+        isProfileRecord = true;
+      }
+
+      const key = normalizeKey(rawKey);
       const value = normalizeValue(item.value);
 
       if (!key || !value) continue;
 
-      // Keep the first non-empty value for each normalized key.
-      if (!memoryMap.has(key)) {
-        memoryMap.set(key, value);
+      // Profile API record ko old memory record par priority do.
+      const existing = memoryMap.get(key);
+
+      if (!existing || isProfileRecord) {
+        memoryMap.set(key, {
+          value,
+          isProfileRecord,
+        });
       }
     }
 
     for (const [field, aliases] of Object.entries(PROFILE_ALIASES)) {
       for (const alias of aliases) {
-        const key = normalizeKey(alias);
-        const value = memoryMap.get(key);
+        const saved = memoryMap.get(normalizeKey(alias));
 
-        if (value) {
-          profile[field] = value;
+        if (saved?.value) {
+          profile[field] = saved.value;
           break;
         }
       }
@@ -197,23 +214,21 @@ const getUserProfile = async () => {
     console.log("PROFILE LOADED FROM MONGODB:", {
       memoryCount: memories.length,
       nameAvailable: Boolean(profile.name),
-      emailAvailable: Boolean(profile.email),
-      mobileAvailable: Boolean(profile.mobile),
-      villageAvailable: Boolean(profile.village),
-      fatherAvailable: Boolean(profile.fatherName),
-      motherAvailable: Boolean(profile.motherName),
-      brotherAvailable: Boolean(profile.brotherName),
       educationAvailable: Boolean(profile.education),
       collegeAvailable: Boolean(profile.college),
       skillsAvailable: Boolean(profile.skills),
-      projectsAvailable: Boolean(profile.projects),
+      villageAvailable: Boolean(profile.village),
     });
+
+    return profile;
   } catch (error) {
     console.error("PROFILE FETCH ERROR:", error.message);
+    return profile;
   }
-
-  return profile;
 };
+
+
+   
 
 // ======================================================
 // AUTOMATIC MEMORY EXTRACTION

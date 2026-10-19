@@ -1,0 +1,323 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nexus AI - Profile Tester</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 25px 15px;
+      font-family: Arial, sans-serif;
+      background: #101827;
+      color: #fff;
+    }
+
+    .container {
+      max-width: 650px;
+      margin: auto;
+      padding: 25px;
+      background: #1e293b;
+      border-radius: 14px;
+    }
+
+    h1 {
+      text-align: center;
+      color: #60a5fa;
+    }
+
+    p {
+      color: #cbd5e1;
+      text-align: center;
+    }
+
+    label {
+      display: block;
+      margin-top: 14px;
+      margin-bottom: 6px;
+    }
+
+    input, textarea {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #475569;
+      border-radius: 7px;
+      background: #0f172a;
+      color: white;
+      font-size: 15px;
+    }
+
+    textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    button {
+      width: 100%;
+      margin-top: 15px;
+      padding: 13px;
+      border: none;
+      border-radius: 7px;
+      background: #2563eb;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #1d4ed8;
+    }
+
+    .load {
+      background: #059669;
+    }
+
+    .load:hover {
+      background: #047857;
+    }
+
+    #status {
+      margin-top: 20px;
+      padding: 12px;
+      border-radius: 7px;
+      background: #0f172a;
+      overflow-wrap: anywhere;
+    }
+
+    pre {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>Nexus AI</h1>
+    <p>Profile Save & Load Tester</p>
+
+    <form id="profileForm">
+      <label for="userId">User ID</label>
+      <input
+        id="userId"
+        name="userId"
+        value="default-user"
+        required
+      />
+
+      <label for="name">Full Name</label>
+      <input
+        id="name"
+        name="name"
+        placeholder="Enter your name"
+      />
+
+      <label for="email">Email</label>
+      <input
+        id="email"
+        name="email"
+        type="email"
+        placeholder="Enter your email"
+      />
+
+      <label for="mobile">Mobile</label>
+      <input
+        id="mobile"
+        name="mobile"
+        placeholder="Enter mobile number"
+      />
+
+      <label for="education">Education</label>
+      <input
+        id="education"
+        name="education"
+        placeholder="Enter education"
+      />
+
+      <label for="college">College</label>
+      <input
+        id="college"
+        name="college"
+        placeholder="Enter college name"
+      />
+
+      <label for="skills">Skills</label>
+      <textarea
+        id="skills"
+        name="skills"
+        placeholder="HTML, CSS, JavaScript, React..."
+      ></textarea>
+
+      <label for="github">GitHub URL</label>
+      <input
+        id="github"
+        name="github"
+        placeholder="https://github.com/username"
+      />
+
+      <label for="linkedin">LinkedIn URL</label>
+      <input
+        id="linkedin"
+        name="linkedin"
+        placeholder="https://linkedin.com/in/username"
+      />
+
+      <label for="portfolio">Portfolio URL</label>
+      <input
+        id="portfolio"
+        name="portfolio"
+        placeholder="Your portfolio URL"
+      />
+
+      <label for="location">Location</label>
+      <input
+        id="location"
+        name="location"
+        placeholder="Enter location"
+      />
+
+      <label for="bio">Bio</label>
+      <textarea
+        id="bio"
+        name="bio"
+        placeholder="Tell us about yourself"
+      ></textarea>
+
+      <label for="projects">Projects</label>
+      <textarea
+        id="projects"
+        name="projects"
+        placeholder="Nexus AI, Smart MCQ Generator..."
+      ></textarea>
+
+      <button id="saveBtn" type="submit">
+        Save Profile
+      </button>
+    </form>
+
+    <button id="loadBtn" class="load" type="button">
+      Load Saved Profile
+    </button>
+
+    <div id="status" role="status" aria-live="polite">
+      Ready to test API.
+    </div>
+  </div>
+
+  <script>
+    const API_URL =
+      "https://nexus-ai-backend-1bpy.onrender.com/api/profile";
+
+    const form = document.getElementById("profileForm");
+    const statusBox = document.getElementById("status");
+    const saveBtn = document.getElementById("saveBtn");
+    const loadBtn = document.getElementById("loadBtn");
+
+    function showResult(title, data) {
+      statusBox.replaceChildren();
+
+      const heading = document.createElement("strong");
+      heading.textContent = title;
+
+      const output = document.createElement("pre");
+      output.textContent = JSON.stringify(data, null, 2);
+
+      statusBox.append(heading, output);
+    }
+
+    async function requestJSON(url, options = {}) {
+      const response = await fetch(url, options);
+
+      const data = await response.json().catch(() => ({
+        message: "Server returned a non-JSON response"
+      }));
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || `HTTP error ${response.status}`
+        );
+      }
+
+      return data;
+    }
+
+    // SAVE PROFILE
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      saveBtn.disabled = true;
+      statusBox.textContent = "Saving profile...";
+
+      const formData = new FormData(form);
+      const profile = Object.fromEntries(formData.entries());
+
+      try {
+        const data = await requestJSON(API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(profile)
+        });
+
+        showResult("Save response", data);
+
+        if (data.success && data.profile) {
+          alert("Profile save request successful!");
+        }
+      } catch (error) {
+        showResult("Save failed", {
+          message: error.message,
+          hint:
+            "Check backend route, Render logs, and browser console. CORS may also need configuration."
+        });
+      } finally {
+        saveBtn.disabled = false;
+      }
+    });
+
+    // LOAD PROFILE
+    loadBtn.addEventListener("click", async () => {
+      loadBtn.disabled = true;
+      statusBox.textContent = "Loading profile...";
+
+      try {
+        const userId =
+          document.getElementById("userId").value.trim();
+
+        const data = await requestJSON(
+          `${API_URL}?userId=${encodeURIComponent(userId)}`
+        );
+
+        if (data.success && data.profile) {
+          const profile = data.profile;
+
+          for (const [key, value] of Object.entries(profile)) {
+            const field = form.elements.namedItem(key);
+
+            if (field && typeof value === "string") {
+              field.value = value;
+            }
+          }
+        }
+
+        showResult("Load response", data);
+      } catch (error) {
+        showResult("Load failed", {
+          message: error.message,
+          hint:
+            "Check the profile API route, Render logs, and CORS configuration."
+        });
+      } finally {
+        loadBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
