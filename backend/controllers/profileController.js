@@ -1,19 +1,28 @@
 
 import Memory from "../models/Memory.js";
 
-// GET PROFILE
+const DEFAULT_USER_ID = "default-user";
+
+// Get profile from MongoDB
 export const getProfile = async (req, res) => {
   try {
-    const userId = req.query.userId || "default-user";
+    const userId = req.query.userId || DEFAULT_USER_ID;
+    const prefix = `profile:${userId}:`;
 
+    // Find all profile fields for this user
     const records = await Memory.find({
-      key: { $regex: `^profile:${userId}:` },
+      key: {
+        $gte: prefix,
+        $lt: `${prefix}\uffff`,
+      },
     }).lean();
 
     const profile = {};
 
     for (const record of records) {
-      const field = record.key.replace(`profile:${userId}:`, "");
+      if (!record.key || record.value == null) continue;
+
+      const field = record.key.slice(prefix.length);
       profile[field] = record.value;
     }
 
@@ -25,9 +34,19 @@ export const getProfile = async (req, res) => {
       });
     }
 
+    console.log("PROFILE LOADED FROM MONGODB:", {
+      userId,
+      fieldsLoaded: Object.keys(profile).length,
+      nameAvailable: Boolean(profile.name),
+    });
+
     return res.status(200).json({
       success: true,
-      profile: { userId, ...profile },
+      message: "Profile loaded successfully",
+      profile: {
+        userId,
+        ...profile,
+      },
     });
   } catch (error) {
     console.error("Get profile error:", error);
@@ -40,19 +59,21 @@ export const getProfile = async (req, res) => {
   }
 };
 
-// CREATE OR UPDATE PROFILE
+// Create or update profile in MongoDB
 export const updateProfile = async (req, res) => {
   try {
-    const userId = req.body.userId || "default-user";
+    const userId = req.body.userId || DEFAULT_USER_ID;
     const profileData = { ...req.body };
 
     delete profileData.userId;
     delete profileData._id;
     delete profileData.__v;
 
+    // Accept only simple profile fields
     const entries = Object.entries(profileData).filter(
       ([key, value]) =>
-        key.trim() &&
+        typeof key === "string" &&
+        key.trim().length > 0 &&
         value !== undefined &&
         value !== null &&
         typeof value !== "object"
@@ -68,11 +89,16 @@ export const updateProfile = async (req, res) => {
     const savedProfile = {};
 
     for (const [key, value] of entries) {
-      const stringValue = String(value);
+      const stringValue = String(value).trim();
+      const memoryKey = `profile:${userId}:${key}`;
 
       await Memory.findOneAndUpdate(
-        { key: `profile:${userId}:${key}` },
-        { $set: { value: stringValue } },
+        { key: memoryKey },
+        {
+          $set: {
+            value: stringValue,
+          },
+        },
         {
           upsert: true,
           new: true,
@@ -84,10 +110,19 @@ export const updateProfile = async (req, res) => {
       savedProfile[key] = stringValue;
     }
 
+    console.log("PROFILE SAVED TO MONGODB:", {
+      userId,
+      fieldsSaved: entries.length,
+      nameAvailable: Boolean(savedProfile.name),
+    });
+
     return res.status(200).json({
       success: true,
       message: "Profile saved successfully",
-      profile: { userId, ...savedProfile },
+      profile: {
+        userId,
+        ...savedProfile,
+      },
     });
   } catch (error) {
     console.error("Update profile error:", error);
@@ -95,6 +130,35 @@ export const updateProfile = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to save profile",
+      error: error.message,
+    });
+  }
+};
+
+// Optional: delete profile from MongoDB
+export const deleteProfile = async (req, res) => {
+  try {
+    const userId = req.query.userId || DEFAULT_USER_ID;
+    const prefix = `profile:${userId}:`;
+
+    const result = await Memory.deleteMany({
+      key: {
+        $gte: prefix,
+        $lt: `${prefix}\uffff`,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Profile deleted successfully",
+      deletedCount: result.deletedCount,
+    });
+  } catch (error) {
+    console.error("Delete profile error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete profile",
       error: error.message,
     });
   }

@@ -7,7 +7,9 @@ import AIAnalytics from "../components/AIAnalytics/AIAnalytics";
 import ActivityLogs from "../components/ActivityLogs/ActivityLogs";
 import FileAnalyzer from "../components/FileAnalyzer/FileAnalyzer";
 import MemoryManager from "../components/MemoryManager/MemoryManager";
-import Profile from "../components/Profile/Profile";
+import Profile, {
+  getUserProfile,
+} from "../components/Profile/Profile";
 import Settings from "../components/Settings/Settings";
 import SystemControl from "../components/SystemControl/SystemControl";
 import VoiceAssistant from "../components/VoiceAssistant/VoiceAssistant";
@@ -15,7 +17,7 @@ import Chat from "./Chat";
 import SystemAPI from "../services/systemApi";
 
 import "../styles/dashboard.css";
-
+const API_URL = "https://nexus-ai-backend-1bpy.onrender.com/api";
 import {
   FaBars,
   FaBrain,
@@ -233,52 +235,110 @@ export default function Dashboard() {
      LOAD PROFILE
   ======================================================= */
 
-  useEffect(() => {
-    const loadProfile = async () => {
-      try {
-        setProfileLoading(true);
+/* =========================================================
+   LOAD PROFILE — CACHE + MONGODB
+========================================================= */
 
-        const response = await axios.get(
-  "https://nexus-ai-backend-1bpy.onrender.com/api/profile"
-);
-        const profile = response.data?.profile || response.data;
+useEffect(() => {
+  let cancelled = false;
 
-        if (profile) {
-          setDatabaseProfile(profile);
+  const loadProfile = async () => {
+    // First load locally cached profile so AI has data immediately.
+    try {
+      const cachedProfile = getUserProfile();
 
-          localStorage.setItem("nexus_profile", JSON.stringify(profile));
+      if (!cancelled && cachedProfile) {
+        setDatabaseProfile(cachedProfile);
+      }
+    } catch (error) {
+      console.error("Local profile read error:", error);
+    }
+
+    try {
+      setProfileLoading(true);
+
+      const response = await axios.get(
+        `${API_BASE_URL.replace(/\/+$/, "").replace(/\/api\/?$/i, "")}/api/profile`,
+        {
+          params: { userId: "default-user" },
         }
-      } catch (error) {
-        console.error("MongoDB profile fetch error:", error);
+      );
 
+      if (cancelled) return;
+
+      // Do not mistake { success: true, profile: null }
+      // for an actual profile.
+      const serverProfile = response.data?.profile;
+
+      if (
+        response.data?.success === true &&
+        serverProfile &&
+        typeof serverProfile === "object"
+      ) {
+        setDatabaseProfile(serverProfile);
+
+        localStorage.setItem(
+          "nexus_profile",
+          JSON.stringify(serverProfile)
+        );
+
+        console.log("✅ Profile loaded from MongoDB:", {
+          nameAvailable: Boolean(serverProfile.name),
+          fields: Object.keys(serverProfile).length,
+        });
+      } else {
+        console.warn(
+          "⚠️ No saved MongoDB profile. Using local/default profile."
+        );
+      }
+    } catch (error) {
+      console.error(
+        "MongoDB profile fetch error:",
+        error.response?.data || error.message
+      );
+
+      // Keep the locally cached profile if the backend fails.
+      if (!cancelled) {
         try {
-          const saved = JSON.parse(
-            localStorage.getItem("nexus_profile") || "null",
-          );
-
-          if (saved) {
-            setDatabaseProfile(saved);
-          }
+          setDatabaseProfile(getUserProfile());
         } catch (localError) {
-          console.error("Local profile backup error:", localError);
+          console.error("Local profile fallback error:", localError);
         }
-      } finally {
+      }
+    } finally {
+      if (!cancelled) {
         setProfileLoading(false);
       }
-    };
+    }
+  };
 
-    loadProfile();
-  }, []);
+  loadProfile();
 
-  /* =======================================================
-     AUTO SCROLL
-  ======================================================= */
+  // Profile.jsx dispatches this event after saving.
+  const handleProfileUpdated = () => {
+    try {
+      setDatabaseProfile(getUserProfile());
+      console.log("🔄 Dashboard profile refreshed.");
+    } catch (error) {
+      console.error("Profile refresh error:", error);
+    }
+  };
 
-  useEffect(() => {
-    consoleEndRef.current?.scrollIntoView({
-      behavior: "smooth",
-    });
-  }, [messages]);
+  window.addEventListener(
+    "nexus-profile-updated",
+    handleProfileUpdated
+  );
+
+  return () => {
+    cancelled = true;
+
+    window.removeEventListener(
+      "nexus-profile-updated",
+      handleProfileUpdated
+    );
+  };
+}, []);
+
 
   /* =======================================================
      CLOCK
@@ -1172,27 +1232,36 @@ export default function Dashboard() {
      SEND TO OPENAI BACKEND
   ======================================================= */
 
-  const sendMessageToBackend = async (userMessage) => {
-    const personalData = getPersonalData();
+const sendMessageToBackend = async (message) => {
+  try {
+    const response = await axios.post(
+      "https://nexus-ai-backend-1bpy.onrender.com/api/chat",
+      {
+        message: message,
+        prompt: message,
+        userId: "default-user",
+      }
+    );
 
-    console.log("👤 Profile sent to AI:", personalData);
+    console.log("✅ Backend response:", response.data);
 
-    return API.post("/ai/chat", {
-      message: userMessage,
+    return response.data;
+  } catch (error) {
+    console.error(
+      "❌ Backend error:",
+      error.response?.status,
+      error.response?.data || error.message
+    );
 
-      history: conversationHistoryRef.current,
-
-      settings: {
-        voiceLang: detectVoiceLang(userMessage),
-      },
-
-      personalData,
-    });
-  };
+    throw error;
+  }
+};
 
   /* =======================================================
      ASK AI / COMMAND ENGINE
   ======================================================= */
+
+
 
   const askGeminiDirect = async (question, voiceAlreadyAdded = false) => {
     const userQuestion = safeText(question, "").trim();
