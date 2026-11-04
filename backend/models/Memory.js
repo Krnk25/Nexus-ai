@@ -20,4 +20,5 @@ const memorySchema = new mongoose.Schema(
   }
 );
 
-export default mongoose.model("Memory", memorySchema);
+
+export default mongoose.model("Memory", memorySchema, "memories");

@@ -157,84 +157,96 @@ const withGeminiRetry = async (operation, maxAttempts = 3) => {
 // ======================================================
 // LOAD PROFILE FROM MONGODB MEMORY COLLECTION
 // ======================================================
-
 const getUserProfile = async () => {
   const profile = Object.fromEntries(
     PROFILE_FIELDS.map((field) => [field, ""])
   );
 
   try {
-    const memories = await Memory.find().lean();
-    console.log(
-  "🔎 MEMORY KEYS IN MONGODB:",
-  memories.map((item) => ({
-    key: item.key,
-    value: item.value,
-  }))
-);
+    // Read every document from the Memory model's collection.
+    const memories = await Memory.find({}).lean();
+
+    console.log("🧠 MEMORY COLLECTION CHECK:", {
+      database: Memory.db?.name,
+      collection: Memory.collection?.name,
+      totalDocuments: memories.length,
+    });
+
     const memoryMap = new Map();
 
-    // Profile API aur old automatic memory dono support karo.
     for (const item of memories) {
-      if (!item?.key || item.value == null) continue;
+      if (!item) continue;
 
-      let rawKey = String(item.key).trim();
-      let isProfileRecord = false;
+      // Support different possible document formats:
+      // { key: "brotherName", value: "..." }
+      // { key: "profile:default-user:brotherName", value: "..." }
+      // { key: "profile:some-user-id:brotherName", value: "..." }
+      // { brotherName: "..." } (fallback)
+      const rawKey = String(item.key || "").trim();
+      const rawValue =
+        item.value ??
+        item.val ??
+        item.data ??
+        "";
 
-      // Example: profile:default-user:name -> name
-      const profileMatch = rawKey.match(
-        /^profile:default-user:(.+)$/i
-      );
+      if (rawKey && rawValue !== "") {
+        const normalizedValue = normalizeValue(rawValue);
 
-      if (profileMatch) {
-        rawKey = profileMatch[1];
-        isProfileRecord = true;
+        if (normalizedValue) {
+          // Extract the final field name from profile-prefixed keys.
+          const parts = rawKey.split(":").filter(Boolean);
+          const finalKey = parts[parts.length - 1] || rawKey;
+          const normalizedKey = normalizeKey(finalKey);
+
+          if (normalizedKey) {
+            memoryMap.set(normalizedKey, normalizedValue);
+          }
+        }
       }
 
-      const key = normalizeKey(rawKey);
-      const value = normalizeValue(item.value);
+      // Fallback for documents that store profile fields directly.
+      for (const field of PROFILE_FIELDS) {
+        if (item[field] !== undefined && item[field] !== null) {
+          const value = normalizeValue(item[field]);
 
-      if (!key || !value) continue;
-
-      // Profile API record ko old memory record par priority do.
-      const existing = memoryMap.get(key);
-
-      if (!existing || isProfileRecord) {
-        memoryMap.set(key, {
-          value,
-          isProfileRecord,
-        });
+          if (value) {
+            memoryMap.set(normalizeKey(field), value);
+          }
+        }
       }
     }
 
+    // Map every profile field through its aliases.
     for (const [field, aliases] of Object.entries(PROFILE_ALIASES)) {
       for (const alias of aliases) {
-        const saved = memoryMap.get(normalizeKey(alias));
+        const value = memoryMap.get(normalizeKey(alias));
 
-        if (saved?.value) {
-          profile[field] = saved.value;
+        if (value) {
+          profile[field] = value;
           break;
         }
       }
     }
 
-    console.log("PROFILE LOADED FROM MONGODB:", {
+    console.log("✅ PROFILE LOADED:", {
       memoryCount: memories.length,
       nameAvailable: Boolean(profile.name),
+      fatherAvailable: Boolean(profile.fatherName),
+      motherAvailable: Boolean(profile.motherName),
+      brotherAvailable: Boolean(profile.brotherName),
+      sisterAvailable: Boolean(profile.sister),
+      villageAvailable: Boolean(profile.village),
       educationAvailable: Boolean(profile.education),
       collegeAvailable: Boolean(profile.college),
       skillsAvailable: Boolean(profile.skills),
-      villageAvailable: Boolean(profile.village),
     });
 
     return profile;
   } catch (error) {
-    console.error("PROFILE FETCH ERROR:", error.message);
+    console.error("❌ PROFILE FETCH ERROR:", error);
     return profile;
   }
 };
-
-
    
 
 // ======================================================
