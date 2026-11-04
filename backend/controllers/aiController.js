@@ -165,6 +165,13 @@ const getUserProfile = async () => {
 
   try {
     const memories = await Memory.find().lean();
+    console.log(
+  "🔎 MEMORY KEYS IN MONGODB:",
+  memories.map((item) => ({
+    key: item.key,
+    value: item.value,
+  }))
+);
     const memoryMap = new Map();
 
     // Profile API aur old automatic memory dono support karo.
