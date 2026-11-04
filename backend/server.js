@@ -1,4 +1,3 @@
-
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
@@ -138,6 +137,92 @@ app.use((err, req, res, next) => {
 });
 
 // ========================================
+// MONGODB DIAGNOSTICS
+// ========================================
+
+const runMongoDiagnostics = async () => {
+  try {
+    const db = mongoose.connection.db;
+
+    if (!db) {
+      console.error("MongoDB database handle is not available");
+      return;
+    }
+
+    console.log("");
+    console.log("=================================");
+    console.log("MONGODB DIAGNOSTICS");
+    console.log("=================================");
+
+    console.log("CONNECTION STATUS:", mongoose.connection.readyState);
+    console.log("DATABASE:", mongoose.connection.name);
+    console.log("HOST:", mongoose.connection.host);
+
+    // List all collections
+    const collections = await db.listCollections().toArray();
+
+    console.log(
+      "COLLECTIONS:",
+      collections.map((collection) => collection.name)
+    );
+
+    console.log("---------------------------------");
+
+    // Count documents in every collection
+    for (const collection of collections) {
+      const count = await db
+        .collection(collection.name)
+        .countDocuments();
+
+      console.log(
+        `COLLECTION ${collection.name}: ${count} documents`
+      );
+    }
+
+    console.log("---------------------------------");
+
+    // Read memories collection
+    const memoryCollection = db.collection("memories");
+
+    const memoryCount = await memoryCollection.countDocuments();
+
+    const memoryDocs = await memoryCollection
+      .find({}, { projection: { key: 1, value: 1 } })
+      .toArray();
+
+    console.log("RAW MEMORY COUNT:", memoryCount);
+
+    console.log(
+      "RAW MEMORY KEYS:",
+      memoryDocs.map((doc) => doc.key)
+    );
+
+    // Check profile-related keys, including prefixed keys
+    const educationRecordExists = memoryDocs.some((doc) => {
+      const key = String(doc.key || "").toLowerCase();
+
+      return (
+        key === "education" ||
+        key.endsWith(":education")
+      );
+    });
+
+    console.log(
+      "EDUCATION RECORD EXISTS:",
+      educationRecordExists
+    );
+
+    console.log("=================================");
+    console.log("");
+  } catch (error) {
+    console.error(
+      "MongoDB diagnostics failed:",
+      error.message
+    );
+  }
+};
+
+// ========================================
 // START SERVER AFTER DATABASE CONNECTION
 // ========================================
 
@@ -145,10 +230,15 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   try {
+    // Connect to MongoDB first
     await connectDB();
 
     console.log("MongoDB connected successfully");
 
+    // Run diagnostics only after connection
+    await runMongoDiagnostics();
+
+    // Start Express server
     app.listen(PORT, "0.0.0.0", () => {
       console.log("---------------------------------");
       console.log("Nexus AI Backend running");
@@ -164,20 +254,6 @@ const startServer = async () => {
     process.exit(1);
   }
 };
-const collections = await mongoose.connection.db
-  .listCollections()
-  .toArray();
 
-console.log("DATABASE:", mongoose.connection.name);
-
-for (const collection of collections) {
-  const count = await mongoose.connection.db
-    .collection(collection.name)
-    .countDocuments();
-
-  console.log(`COLLECTION ${collection.name}: ${count} documents`);
-}
-
-
-
+// Start application
 startServer();
