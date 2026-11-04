@@ -59,7 +59,7 @@ export const getProfile = async (req, res) => {
   }
 };
 
-// Create or update profile in MongoDB
+// Create or update profile in MongoDB// Create or update profile in MongoDB
 export const updateProfile = async (req, res) => {
   try {
     const userId = req.body.userId || DEFAULT_USER_ID;
@@ -69,20 +69,21 @@ export const updateProfile = async (req, res) => {
     delete profileData._id;
     delete profileData.__v;
 
-    // Accept only simple profile fields
+    // Accept only non-empty simple profile fields
     const entries = Object.entries(profileData).filter(
       ([key, value]) =>
         typeof key === "string" &&
         key.trim().length > 0 &&
         value !== undefined &&
         value !== null &&
-        typeof value !== "object"
+        typeof value !== "object" &&
+        String(value).trim().length > 0
     );
 
     if (entries.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "No valid profile fields provided",
+        message: "Please enter at least one profile field.",
       });
     }
 
@@ -101,7 +102,7 @@ export const updateProfile = async (req, res) => {
         },
         {
           upsert: true,
-          new: true,
+          returnDocument: "after",
           runValidators: true,
           setDefaultsOnInsert: true,
         }
@@ -110,9 +111,10 @@ export const updateProfile = async (req, res) => {
       savedProfile[key] = stringValue;
     }
 
-    console.log("PROFILE SAVED TO MONGODB:", {
+    console.log("✅ PROFILE SAVED TO MONGODB:", {
       userId,
       fieldsSaved: entries.length,
+      savedFields: Object.keys(savedProfile),
       nameAvailable: Boolean(savedProfile.name),
     });
 
@@ -124,7 +126,7 @@ export const updateProfile = async (req, res) => {
         ...savedProfile,
       },
     });
-  }   catch (error) {
+  } catch (error) {
     console.error("❌ UPDATE PROFILE ERROR:", {
       message: error.message,
       name: error.name,
@@ -142,6 +144,7 @@ export const updateProfile = async (req, res) => {
     });
   }
 };
+
 
 // Optional: delete profile from MongoDB
 export const deleteProfile = async (req, res) => {
