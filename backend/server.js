@@ -163,5 +163,18 @@ const startServer = async () => {
     process.exit(1);
   }
 };
+const collections = await mongoose.connection.db
+  .listCollections()
+  .toArray();
+
+console.log("DATABASE:", mongoose.connection.name);
+
+for (const collection of collections) {
+  const count = await mongoose.connection.db
+    .collection(collection.name)
+    .countDocuments();
+
+  console.log(`COLLECTION ${collection.name}: ${count} documents`);
+}
 
 startServer();
