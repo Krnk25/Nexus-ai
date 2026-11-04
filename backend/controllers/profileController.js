@@ -124,13 +124,21 @@ export const updateProfile = async (req, res) => {
         ...savedProfile,
       },
     });
-  } catch (error) {
-    console.error("Update profile error:", error);
+  }   catch (error) {
+    console.error("❌ UPDATE PROFILE ERROR:", {
+      message: error.message,
+      name: error.name,
+      code: error.code,
+      keyPattern: error.keyPattern,
+      keyValue: error.keyValue,
+      stack: error.stack,
+    });
 
     return res.status(500).json({
       success: false,
       message: "Failed to save profile",
       error: error.message,
+      code: error.code || null,
     });
   }
 };
