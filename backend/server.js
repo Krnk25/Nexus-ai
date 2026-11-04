@@ -2,6 +2,7 @@
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
+import mongoose from "mongoose";
 
 // Load environment variables
 dotenv.config();
@@ -176,5 +177,7 @@ for (const collection of collections) {
 
   console.log(`COLLECTION ${collection.name}: ${count} documents`);
 }
+
+
 
 startServer();
