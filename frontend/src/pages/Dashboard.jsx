@@ -1,23 +1,31 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+
 import { useNavigate } from "react-router-dom";
+
 import axios from "axios";
-import API from "../api/api";
 
 import AIAnalytics from "../components/AIAnalytics/AIAnalytics";
+
 import ActivityLogs from "../components/ActivityLogs/ActivityLogs";
+
 import FileAnalyzer from "../components/FileAnalyzer/FileAnalyzer";
+
 import MemoryManager from "../components/MemoryManager/MemoryManager";
-import Profile, {
-  getUserProfile,
-} from "../components/Profile/Profile";
+
+import Profile, { getUserProfile } from "../components/Profile/Profile";
+
 import Settings from "../components/Settings/Settings";
+
 import SystemControl from "../components/SystemControl/SystemControl";
+
 import VoiceAssistant from "../components/VoiceAssistant/VoiceAssistant";
+
 import Chat from "./Chat";
+
 import SystemAPI from "../services/systemApi";
 
 import "../styles/dashboard.css";
-const API_URL = "https://nexus-ai-backend-1bpy.onrender.com/api";
+
 import {
   FaBars,
   FaBrain,
@@ -38,83 +46,120 @@ import {
 } from "react-icons/fa";
 
 /* =========================================================
+
    BACKEND URL
+
 ========================================================= */
 
-const API_BASE_URL =
+const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL ||
-  "https://nexus-ai-backend-1bpy.onrender.com/api";
+  "https://nexus-ai-backend-1bpy.onrender.com/api"
+).replace(/\/+$/, "");
 
-const HEALTH_URL = API_BASE_URL.replace(/\/api\/?$/, "");
+const API_ROOT_URL = API_BASE_URL.replace(/\/api$/i, "");
+
+const API_URL = `${API_ROOT_URL}/api`;
+
+const HEALTH_URL = API_ROOT_URL;
 
 /* =========================================================
+
    MENU
+
 ========================================================= */
 
 const menu = [
   {
     icon: <FaHome />,
+
     text: "Dashboard",
   },
+
   {
     icon: <FaComments />,
+
     text: "AI Chat",
   },
+
   {
     icon: <FaMicrophone />,
+
     text: "Voice Command",
   },
+
   {
     icon: <FaDesktop />,
+
     text: "System & Web",
   },
+
   {
     icon: <FaChartBar />,
+
     text: "File Analyzer",
   },
+
   {
     icon: <FaChartLine />,
+
     text: "AI Analytics",
   },
+
   {
     icon: <FaCog />,
+
     text: "Settings",
   },
 ];
 
 /* =========================================================
+
    QUICK COMMANDS
 
    IMPORTANT:
+
    No URL or system command logic here.
+
    Everything goes through runSystemCommand().
+
 ========================================================= */
 
 const quickCommands = [
   {
     icon: <FaGoogle />,
+
     text: "Open Google",
   },
+
   {
     icon: <FaYoutube />,
+
     text: "Open YouTube",
   },
+
   {
     icon: <FaGithub />,
+
     text: "Open GitHub",
   },
+
   {
     icon: <FaDesktop />,
+
     text: "What is React?",
   },
+
   {
     icon: <FaCloudSun />,
+
     text: "Weather Update",
   },
 ];
 
 /* =========================================================
+
    MATRIX
+
 ========================================================= */
 
 const makeBinary = () =>
@@ -123,28 +168,42 @@ const makeBinary = () =>
   );
 
 /* =========================================================
+
    DASHBOARD
+
 ========================================================= */
 
 export default function Dashboard() {
   const navigate = useNavigate();
 
   /* =======================================================
+
      MODALS
+
   ======================================================= */
 
   const [showChat, setShowChat] = useState(false);
+
   const [showVoice, setShowVoice] = useState(false);
+
   const [showSystem, setShowSystem] = useState(false);
+
   const [showFileAnalyzer, setShowFileAnalyzer] = useState(false);
+
   const [showSettings, setShowSettings] = useState(false);
+
   const [showProfile, setShowProfile] = useState(false);
+
   const [showMemory, setShowMemory] = useState(false);
+
   const [showActivity, setShowActivity] = useState(false);
+
   const [showAnalytics, setShowAnalytics] = useState(false);
 
   /* =======================================================
+
      PROFILE
+
   ======================================================= */
 
   const [databaseProfile, setDatabaseProfile] = useState(null);
@@ -152,29 +211,39 @@ export default function Dashboard() {
   const [profileLoading, setProfileLoading] = useState(true);
 
   /* =======================================================
+
      CHAT
+
   ======================================================= */
 
   const [input, setInput] = useState("");
 
   const [messages, setMessages] = useState([
     "NEXUS AI v3.0.0",
+
     "Hello Karan 👋",
+
     "karan Click mic and ask anything. SHIFRA will answer directly.",
   ]);
 
   const [sending, setSending] = useState(false);
 
   /* =======================================================
+
      VOICE
+
   ======================================================= */
 
   const [listening, setListening] = useState(false);
+
   const [voiceReady, setVoiceReady] = useState(false);
+
   const [voiceActive, setVoiceActive] = useState(false);
 
   /* =======================================================
+
      SYSTEM
+
   ======================================================= */
 
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
@@ -188,7 +257,9 @@ export default function Dashboard() {
   const [systemStatus, setSystemStatus] = useState("READY");
 
   /* =======================================================
+
      REFS
+
   ======================================================= */
 
   const consoleEndRef = useRef(null);
@@ -211,137 +282,163 @@ export default function Dashboard() {
 
   const lastQuestionRef = useRef({
     text: "",
+
     time: 0,
   });
 
   /* =======================================================
+
      MATRIX RAIN
+
   ======================================================= */
 
   const rain = useMemo(
     () =>
       Array.from({ length: 60 }).map((_, index) => ({
         id: index,
+
         left: `${(index / 60) * 100}%`,
+
         // eslint-disable-next-line react-hooks/purity
+
         duration: `${7 + Math.random() * 6}s`,
+
         delay: `${Math.random() * 5}s`,
+
         text: makeBinary(),
       })),
+
     [],
   );
 
   /* =======================================================
+
      LOAD PROFILE
+
   ======================================================= */
 
-/* =========================================================
+  /* =========================================================
+
    LOAD PROFILE — CACHE + MONGODB
+
 ========================================================= */
 
-useEffect(() => {
-  let cancelled = false;
+  useEffect(() => {
+    let cancelled = false;
 
-  const loadProfile = async () => {
-    // First load locally cached profile so AI has data immediately.
-    try {
-      const cachedProfile = getUserProfile();
+    const loadProfile = async () => {
+      // First load locally cached profile so AI has data immediately.
 
-      if (!cancelled && cachedProfile) {
-        setDatabaseProfile(cachedProfile);
-      }
-    } catch (error) {
-      console.error("Local profile read error:", error);
-    }
+      try {
+        const cachedProfile = getUserProfile();
 
-    try {
-      setProfileLoading(true);
-
-      const response = await axios.get(
-        `${API_BASE_URL.replace(/\/+$/, "").replace(/\/api\/?$/i, "")}/api/profile`,
-        {
-          params: { userId: "default-user" },
+        if (!cancelled && cachedProfile) {
+          setDatabaseProfile(cachedProfile);
         }
-      );
+      } catch (error) {
+        console.error("Local profile read error:", error);
+      }
 
-      if (cancelled) return;
+      try {
+        setProfileLoading(true);
 
-      // Do not mistake { success: true, profile: null }
-      // for an actual profile.
-      const serverProfile = response.data?.profile;
+        const response = await axios.get(
+          `${API_URL}/profile`,
 
-      if (
-        response.data?.success === true &&
-        serverProfile &&
-        typeof serverProfile === "object"
-      ) {
-        setDatabaseProfile(serverProfile);
-
-        localStorage.setItem(
-          "nexus_profile",
-          JSON.stringify(serverProfile)
+          {
+            params: { userId: "default-user" },
+          },
         );
 
-        console.log("✅ Profile loaded from MongoDB:", {
-          nameAvailable: Boolean(serverProfile.name),
-          fields: Object.keys(serverProfile).length,
-        });
-      } else {
-        console.warn(
-          "⚠️ No saved MongoDB profile. Using local/default profile."
-        );
-      }
-    } catch (error) {
-      console.error(
-        "MongoDB profile fetch error:",
-        error.response?.data || error.message
-      );
+        if (cancelled) return;
 
-      // Keep the locally cached profile if the backend fails.
-      if (!cancelled) {
-        try {
-          setDatabaseProfile(getUserProfile());
-        } catch (localError) {
-          console.error("Local profile fallback error:", localError);
+        // Do not mistake { success: true, profile: null }
+
+        // for an actual profile.
+
+        const serverProfile = response.data?.profile;
+
+        if (
+          response.data?.success === true &&
+          serverProfile &&
+          typeof serverProfile === "object"
+        ) {
+          setDatabaseProfile(serverProfile);
+
+          localStorage.setItem(
+            "nexus_profile",
+
+            JSON.stringify(serverProfile),
+          );
+
+          console.log("✅ Profile loaded from MongoDB:", {
+            nameAvailable: Boolean(serverProfile.name),
+
+            fields: Object.keys(serverProfile).length,
+          });
+        } else {
+          console.warn(
+            "⚠️ No saved MongoDB profile. Using local/default profile.",
+          );
+        }
+      } catch (error) {
+        console.error(
+          "MongoDB profile fetch error:",
+
+          error.response?.data || error.message,
+        );
+
+        // Keep the locally cached profile if the backend fails.
+
+        if (!cancelled) {
+          try {
+            setDatabaseProfile(getUserProfile());
+          } catch (localError) {
+            console.error("Local profile fallback error:", localError);
+          }
+        }
+      } finally {
+        if (!cancelled) {
+          setProfileLoading(false);
         }
       }
-    } finally {
-      if (!cancelled) {
-        setProfileLoading(false);
+    };
+
+    loadProfile();
+
+    // Profile.jsx dispatches this event after saving.
+
+    const handleProfileUpdated = () => {
+      try {
+        setDatabaseProfile(getUserProfile());
+
+        console.log("🔄 Dashboard profile refreshed.");
+      } catch (error) {
+        console.error("Profile refresh error:", error);
       }
-    }
-  };
+    };
 
-  loadProfile();
-
-  // Profile.jsx dispatches this event after saving.
-  const handleProfileUpdated = () => {
-    try {
-      setDatabaseProfile(getUserProfile());
-      console.log("🔄 Dashboard profile refreshed.");
-    } catch (error) {
-      console.error("Profile refresh error:", error);
-    }
-  };
-
-  window.addEventListener(
-    "nexus-profile-updated",
-    handleProfileUpdated
-  );
-
-  return () => {
-    cancelled = true;
-
-    window.removeEventListener(
+    window.addEventListener(
       "nexus-profile-updated",
-      handleProfileUpdated
-    );
-  };
-}, []);
 
+      handleProfileUpdated,
+    );
+
+    return () => {
+      cancelled = true;
+
+      window.removeEventListener(
+        "nexus-profile-updated",
+
+        handleProfileUpdated,
+      );
+    };
+  }, []);
 
   /* =======================================================
+
      CLOCK
+
   ======================================================= */
 
   useEffect(() => {
@@ -353,7 +450,9 @@ useEffect(() => {
   }, []);
 
   /* =======================================================
+
      NETWORK
+
   ======================================================= */
 
   useEffect(() => {
@@ -373,16 +472,27 @@ useEffect(() => {
   }, []);
 
   /* =======================================================
+
      BACKEND HEALTH
+
   ======================================================= */
 
   useEffect(() => {
+    let cancelled = false;
+    let checking = false;
     const checkBackend = async () => {
+      if (cancelled || checking) return;
+
+      checking = true;
+
       try {
         const response = await fetch(HEALTH_URL, {
           method: "GET",
-          signal: AbortSignal.timeout(30000),
+          signal: AbortSignal.timeout(15000),
+          cache: "no-store",
         });
+
+        if (cancelled) return;
 
         if (response.ok) {
           setBackendStatus("ACTIVE");
@@ -392,20 +502,28 @@ useEffect(() => {
           console.error("🔴 Backend health check failed:", response.status);
         }
       } catch (error) {
-        console.error("❌ Backend health check error:", error);
-        setBackendStatus("FAILED");
+        if (!cancelled) {
+          setBackendStatus("FAILED");
+
+          console.error("❌ Backend health check error:", error.message);
+        }
+      } finally {
+        checking = false;
       }
     };
-
     checkBackend();
+    const timer = setInterval(checkBackend, 30000);
 
-    const timer = setInterval(checkBackend, 15000);
-
-    return () => clearInterval(timer);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
   }, []);
 
   /* =======================================================
+
      LOAD TTS VOICES
+
   ======================================================= */
 
   useEffect(() => {
@@ -427,7 +545,9 @@ useEffect(() => {
   }, []);
 
   /* =======================================================
+
      CLEANUP
+
   ======================================================= */
 
   useEffect(() => {
@@ -449,7 +569,9 @@ useEffect(() => {
   }, []);
 
   /* =======================================================
+
      SAFE TEXT
+
   ======================================================= */
 
   const safeText = (value, fallback = "") => {
@@ -480,7 +602,9 @@ useEffect(() => {
   };
 
   /* =======================================================
+
      PERSONAL DATA
+
   ======================================================= */
 
   const getPersonalData = () => {
@@ -498,57 +622,102 @@ useEffect(() => {
       bio: "",
     };
 
-    if (!databaseProfile) {
-      return emptyProfile;
+    let localProfile = {};
+    try {
+      localProfile = getUserProfile() || {};
+    } catch (error) {
+      console.error("Unable to read cached profile:", error);
     }
 
-    return {
-      name: databaseProfile.name || "",
-      email: databaseProfile.email || "",
-      mobile: databaseProfile.mobile || "",
-      education: databaseProfile.education || "",
-      college: databaseProfile.college || "",
-      skills: databaseProfile.skills || "",
-      github: databaseProfile.github || "",
-      linkedin: databaseProfile.linkedin || "",
-      portfolio: databaseProfile.portfolio || "",
-      location: databaseProfile.location || "",
-      bio: databaseProfile.bio || "",
-    };
-  };
-
-  /* =======================================================
-     AI REPLY
-  ======================================================= */
-
-  const getAIReply = (data) => {
-    if (!data) {
-      return "No reply received from AI.";
-    }
-
-    if (typeof data === "string") {
-      return data;
-    }
-
-    return safeText(
-      data.reply ||
-        data.answer ||
-        data.message ||
-        data.response ||
-        data.text ||
-        data.data?.reply ||
-        data.data?.answer ||
-        data.data?.message ||
-        data.result?.reply ||
-        data.result?.answer,
-      "No reply received from AI.",
+    const profile = databaseProfile || {};
+    return Object.fromEntries(
+      Object.keys(emptyProfile).map((key) => [
+        key,
+        profile[key] || localProfile[key] || emptyProfile[key],
+      ]),
     );
   };
 
   /* =======================================================
-     ADD MESSAGE
+
+     AI REPLY
+
   ======================================================= */
 
+  const getAIReply = (data) => {
+    if (data == null) {
+      console.error("AI response is empty:", data);
+      return "AI se empty response mila.";
+    }
+
+    // Handle plain text response
+    if (typeof data === "string") {
+      return data.trim() || "AI se empty response mila.";
+    }
+
+    // Extract text from nested backend response formats
+    const extractText = (value, depth = 0) => {
+      if (depth > 8 || value == null) return "";
+
+      if (typeof value === "string") {
+        return value.trim();
+      }
+
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          const text = extractText(item, depth + 1);
+          if (text) return text;
+        }
+        return "";
+      }
+
+      if (typeof value !== "object") return "";
+
+      const keys = [
+        "reply",
+        "answer",
+        "output_text",
+        "text",
+        "content",
+        "parts",
+        "message",
+        "response",
+        "chat",
+        "result",
+        "data",
+        "candidates",
+        "choices",
+        "output",
+      ];
+
+      for (const key of keys) {
+        if (value[key] !== undefined && value[key] !== null) {
+          const result = extractText(value[key], depth + 1);
+          if (result) return result;
+        }
+      }
+
+      return "";
+    };
+
+    const reply = extractText(data);
+
+    if (!reply) {
+      console.error(
+        "AI response has no readable text:",
+        JSON.stringify(data, null, 2),
+      );
+
+      return "AI response mila, lekin usme readable reply nahi hai.";
+    }
+
+    return reply;
+  };
+
+  /* =======================================================
+   ADD MESSAGE
+======================================================= */
+  // ADD MESSAGE
   const addMessage = (message) => {
     const finalMessage = safeText(message, "");
 
@@ -558,7 +727,9 @@ useEffect(() => {
   };
 
   /* =======================================================
+
      REPLACE LAST MESSAGE
+
   ======================================================= */
 
   const replaceLastMessage = (message) => {
@@ -578,7 +749,9 @@ useEffect(() => {
   };
 
   /* =======================================================
+
      CONVERSATION HISTORY
+
   ======================================================= */
 
   const addToConversationHistory = (role, content) => {
@@ -588,15 +761,19 @@ useEffect(() => {
 
     conversationHistoryRef.current = [
       ...conversationHistoryRef.current,
+
       {
         role,
+
         content: finalContent,
       },
     ].slice(-16);
   };
 
   /* =======================================================
+
      LANGUAGE
+
   ======================================================= */
 
   const detectVoiceLang = (text) => {
@@ -604,49 +781,89 @@ useEffect(() => {
 
     const marathiWords = [
       "काय",
+
       "कसा",
+
       "कशी",
+
       "आहे",
+
       "मला",
+
       "तुला",
+
       "सांग",
+
       "कर",
+
       "मराठी",
+
       "महाराष्ट्र",
+
       "नाव",
+
       "वेळ",
+
       "तारीख",
+
       "वाजले",
+
       "kay",
+
       "kasa",
+
       "kashi",
+
       "mala",
+
       "tula",
+
       "sang",
+
       "marathi",
+
       "maharashtra",
     ];
 
     const hindiWords = [
       "क्या",
+
       "कैसे",
+
       "कैसी",
+
       "है",
+
       "मुझे",
+
       "तुम",
+
       "बताओ",
+
       "करो",
+
       "हिंदी",
+
       "समय",
+
       "नाम",
+
       "तारीख",
+
       "अभी",
+
       "kya",
+
       "kaise",
+
       "mujhe",
+
       "tum",
+
       "batao",
+
       "hindi",
+
       "samay",
     ];
 
@@ -662,7 +879,9 @@ useEffect(() => {
   };
 
   /* =======================================================
+
      FEMALE / INDIAN VOICE
+
   ======================================================= */
 
   const getIndianFemaleVoice = (lang) => {
@@ -672,13 +891,21 @@ useEffect(() => {
 
     const femaleNames = [
       "aarohi",
+
       "heera",
+
       "kalpana",
+
       "swara",
+
       "neerja",
+
       "sunita",
+
       "zira",
+
       "susan",
+
       "female",
     ];
 
@@ -696,7 +923,9 @@ useEffect(() => {
   };
 
   /* =======================================================
+
      SPEAK
+
   ======================================================= */
 
   const speak = (replyText) => {
@@ -708,6 +937,7 @@ useEffect(() => {
 
     const cleanText = finalText.replace(
       /```[\s\S]*?```/g,
+
       "Code block generated in console.",
     );
 
@@ -718,8 +948,11 @@ useEffect(() => {
     const utterance = new SpeechSynthesisUtterance(cleanText);
 
     utterance.lang = language;
+
     utterance.rate = 0.92;
+
     utterance.pitch = 1.15;
+
     utterance.volume = 1;
 
     const voice = getIndianFemaleVoice(language);
@@ -758,7 +991,9 @@ useEffect(() => {
   };
 
   /* =======================================================
+
      RESTART VOICE
+
   ======================================================= */
 
   const restartVoiceRecognition = () => {
@@ -783,7 +1018,9 @@ useEffect(() => {
   };
 
   /* =======================================================
+
      SYSTEM COMMAND
+
   ======================================================= */
 
   const runSystemCommand = async (command) => {
@@ -799,8 +1036,8 @@ useEffect(() => {
       console.log("🖥️ SYSTEM COMMAND:", finalCommand);
 
       const response = await SystemAPI.post("/system/run", {
-  command,
-});
+        command,
+      });
 
       console.log("🖥️ SYSTEM RESPONSE:", response.data);
 
@@ -821,7 +1058,9 @@ useEffect(() => {
   };
 
   /* =======================================================
+
      CREATE SPEECH RECOGNITION
+
   ======================================================= */
 
   const createRecognition = () => {
@@ -837,12 +1076,17 @@ useEffect(() => {
     const recognition = new SpeechRecognition();
 
     recognition.continuous = false;
+
     recognition.interimResults = false;
 
     // English commands like:
+
     // Open YouTube
+
     // Open Google
+
     // Open GitHub
+
     recognition.lang = "en-IN";
 
     recognition.maxAlternatives = 1;
@@ -851,13 +1095,16 @@ useEffect(() => {
       listeningRef.current = true;
 
       setListening(true);
+
       setVoiceReady(true);
 
       setInput("🎙️ Listening...");
     };
 
     /* =====================================================
+
        🔥 IMPORTANT VOICE RESULT
+
     ===================================================== */
 
     recognition.onresult = async (event) => {
@@ -876,6 +1123,7 @@ useEffect(() => {
       }
 
       listeningRef.current = false;
+
       setListening(false);
 
       setInput(transcript);
@@ -883,18 +1131,27 @@ useEffect(() => {
       addMessage(`🎤 ${transcript}`);
 
       /*
+
         IMPORTANT:
 
         Voice command goes into the SAME pipeline
+
         as text command.
 
         askGeminiDirect()
+
               ↓
+
         runLocalCommand()
+
               ↓
+
         runSystemCommand()
+
               ↓
+
         /api/system/run
+
       */
 
       await askGeminiDirect(transcript, true);
@@ -904,6 +1161,7 @@ useEffect(() => {
       console.error("🎙️ Speech recognition error:", event.error);
 
       listeningRef.current = false;
+
       setListening(false);
 
       if (!voiceActiveRef.current) {
@@ -917,6 +1175,7 @@ useEffect(() => {
         voiceActiveRef.current = false;
 
         setVoiceActive(false);
+
         setVoiceReady(false);
 
         addMessage(
@@ -951,7 +1210,9 @@ useEffect(() => {
   };
 
   /* =======================================================
+
      START RECOGNITION
+
   ======================================================= */
 
   const startVoiceRecognition = () => {
@@ -969,6 +1230,7 @@ useEffect(() => {
       voiceActiveRef.current = false;
 
       setVoiceActive(false);
+
       setVoiceReady(false);
 
       return;
@@ -984,18 +1246,22 @@ useEffect(() => {
   };
 
   /* =======================================================
+
      START / STOP VOICE
+
   ======================================================= */
 
   const startVoice = () => {
     if (voiceActiveRef.current) {
       stopVoice();
+
       return;
     }
 
     voiceActiveRef.current = true;
 
     setVoiceActive(true);
+
     setVoiceReady(true);
 
     addMessage("🎙️ Voice mode activated.");
@@ -1007,11 +1273,15 @@ useEffect(() => {
     voiceActiveRef.current = false;
 
     setVoiceActive(false);
+
     setListening(false);
+
     setVoiceReady(false);
 
     listeningRef.current = false;
+
     speakingRef.current = false;
+
     thinkingRef.current = false;
 
     if (restartTimerRef.current) {
@@ -1036,15 +1306,21 @@ useEffect(() => {
   };
 
   /* =======================================================
+
      DATE
+
   ======================================================= */
 
   const getCurrentDateReply = (language) => {
     const date = new Date().toLocaleDateString(language, {
       timeZone: "Asia/Kolkata",
+
       weekday: "long",
+
       day: "numeric",
+
       month: "long",
+
       year: "numeric",
     });
 
@@ -1060,14 +1336,19 @@ useEffect(() => {
   };
 
   /* =======================================================
+
      TIME
+
   ======================================================= */
 
   const getCurrentTimeReply = (language) => {
     const time = new Date().toLocaleTimeString(language, {
       timeZone: "Asia/Kolkata",
+
       hour: "2-digit",
+
       minute: "2-digit",
+
       hour12: true,
     });
 
@@ -1083,7 +1364,9 @@ useEffect(() => {
   };
 
   /* =======================================================
+
      LOCAL / SYSTEM COMMAND ROUTER
+
   ======================================================= */
 
   const runLocalCommand = async (command) => {
@@ -1098,7 +1381,9 @@ useEffect(() => {
     }
 
     /* =====================================================
+
        DATE
+
     ===================================================== */
 
     if (
@@ -1113,7 +1398,9 @@ useEffect(() => {
     }
 
     /* =====================================================
+
        TIME
+
     ===================================================== */
 
     if (
@@ -1128,7 +1415,9 @@ useEffect(() => {
     }
 
     /* =====================================================
+
        MY NAME
+
     ===================================================== */
 
     if (
@@ -1148,7 +1437,9 @@ useEffect(() => {
     }
 
     /* =====================================================
+
        DEVELOPER
+
     ===================================================== */
 
     if (
@@ -1166,7 +1457,9 @@ useEffect(() => {
     }
 
     /* =====================================================
+
        WEATHER
+
     ===================================================== */
 
     if (
@@ -1179,35 +1472,58 @@ useEffect(() => {
     }
 
     /* =====================================================
+
        SYSTEM / WEB COMMANDS
-       
+
        IMPORTANT:
+
        No URLs here.
+
        No window.open here.
 
        systemController.js is the source of truth.
+
     ===================================================== */
 
     const systemCommandPatterns = [
       "open ",
+
       "start ",
+
       "launch ",
+
       "kholo",
+
       "खोल",
+
       "open youtube",
+
       "open google",
+
       "open github",
+
       "open chrome",
+
       "open calculator",
+
       "open notepad",
+
       "youtube",
+
       "google",
+
       "github",
+
       "chrome",
+
       "calculator",
+
       "notepad",
+
       "lock",
+
       "restart",
+
       "shutdown",
     ];
 
@@ -1222,46 +1538,57 @@ useEffect(() => {
     }
 
     /* =====================================================
+
        NORMAL AI QUESTION
+
     ===================================================== */
 
     return null;
   };
 
   /* =======================================================
+
      SEND TO OPENAI BACKEND
+
   ======================================================= */
 
-const sendMessageToBackend = async (message) => {
-  try {
-    const response = await axios.post(
-      "https://nexus-ai-backend-1bpy.onrender.com/api/chat",
-      {
-        message: message,
-        prompt: message,
-        userId: "default-user",
-      }
-    );
+  const sendMessageToBackend = async (message) => {
+    try {
+      const response = await axios.post(
+        `${API_URL}/chat`,
 
-    console.log("✅ Backend response:", response.data);
+        {
+          message: message,
 
-    return response.data;
-  } catch (error) {
-    console.error(
-      "❌ Backend error:",
-      error.response?.status,
-      error.response?.data || error.message
-    );
+          prompt: message,
 
-    throw error;
-  }
-};
+          userId: "default-user",
+        },
+
+        { timeout: 60000 },
+      );
+
+      console.log("✅ Backend response:", response.data);
+
+      return response.data;
+    } catch (error) {
+      console.error(
+        "❌ Backend error:",
+
+        error.response?.status,
+
+        error.response?.data || error.message,
+      );
+
+      throw error;
+    }
+  };
 
   /* =======================================================
+
      ASK AI / COMMAND ENGINE
+
   ======================================================= */
-
-
 
   const askGeminiDirect = async (question, voiceAlreadyAdded = false) => {
     const userQuestion = safeText(question, "").trim();
@@ -1281,11 +1608,14 @@ const sendMessageToBackend = async (message) => {
 
     lastQuestionRef.current = {
       text: userQuestion,
+
       time: now,
     };
 
     thinkingRef.current = true;
+
     setSending(true);
+
     setInput(userQuestion);
 
     if (!voiceAlreadyAdded) {
@@ -1296,7 +1626,9 @@ const sendMessageToBackend = async (message) => {
 
     try {
       /* =================================================
+
          FIRST: LOCAL / SYSTEM COMMAND
+
       ================================================= */
 
       const localReply = await runLocalCommand(userQuestion);
@@ -1314,12 +1646,14 @@ const sendMessageToBackend = async (message) => {
       }
 
       /* =================================================
+
          SECOND: OPENAI
+
       ================================================= */
 
       const response = await sendMessageToBackend(userQuestion);
 
-      const reply = getAIReply(response.data);
+      const reply = getAIReply(response);
 
       setBackendStatus("ACTIVE");
 
@@ -1346,11 +1680,15 @@ const sendMessageToBackend = async (message) => {
       speak(errorMessage);
     } finally {
       thinkingRef.current = false;
+
       setSending(false);
 
       /*
+
         If voice mode is active and no speech
+
         is currently running, recognition can restart.
+
       */
 
       if (voiceActiveRef.current && !speakingRef.current) {
@@ -1360,7 +1698,9 @@ const sendMessageToBackend = async (message) => {
   };
 
   /* =======================================================
+
      TEXT SEND
+
   ======================================================= */
 
   const handleSend = async (textValue = input) => {
@@ -1381,7 +1721,9 @@ const sendMessageToBackend = async (message) => {
   };
 
   /* =======================================================
+
      CLEAR CONSOLE
+
   ======================================================= */
 
   const clearConsole = () => {
@@ -1389,6 +1731,7 @@ const sendMessageToBackend = async (message) => {
 
     lastQuestionRef.current = {
       text: "",
+
       time: 0,
     };
 
@@ -1396,13 +1739,17 @@ const sendMessageToBackend = async (message) => {
 
     setMessages([
       "NEXUS AI v3.0.0",
+
       "Console cleared.",
+
       "Karan Click mic and ask anything.",
     ]);
   };
 
   /* =======================================================
+
      STATUS
+
   ======================================================= */
 
   const getStatusWidth = (value) => {
@@ -1430,13 +1777,17 @@ const sendMessageToBackend = async (message) => {
     value === "FAILED" || value === "OFFLINE" || value === "ERROR";
 
   /* =======================================================
+
      UI
+
   ======================================================= */
 
   return (
     <div className="nexus-page">
       {/* =================================================
+
           MATRIX
+
       ================================================= */}
 
       <div className="matrix-rain">
@@ -1445,7 +1796,9 @@ const sendMessageToBackend = async (message) => {
             key={item.id}
             style={{
               left: item.left,
+
               animationDuration: item.duration,
+
               animationDelay: item.delay,
             }}
           >
@@ -1455,7 +1808,9 @@ const sendMessageToBackend = async (message) => {
       </div>
 
       {/* =================================================
+
           TOPBAR
+
       ================================================= */}
 
       <header className="topbar">
@@ -1492,9 +1847,13 @@ const sendMessageToBackend = async (message) => {
             <p>
               {currentDateTime.toLocaleDateString("en-IN", {
                 timeZone: "Asia/Kolkata",
+
                 weekday: "short",
+
                 day: "numeric",
+
                 month: "short",
+
                 year: "numeric",
               })}
             </p>
@@ -1527,7 +1886,9 @@ const sendMessageToBackend = async (message) => {
       </header>
 
       {/* =================================================
+
           PROFILE
+
       ================================================= */}
 
       {showProfile && (
@@ -1551,7 +1912,9 @@ const sendMessageToBackend = async (message) => {
       )}
 
       {/* =================================================
+
           MEMORY
+
       ================================================= */}
 
       {showMemory && (
@@ -1571,7 +1934,9 @@ const sendMessageToBackend = async (message) => {
       )}
 
       {/* =================================================
+
           ACTIVITY
+
       ================================================= */}
 
       {showActivity && (
@@ -1591,12 +1956,16 @@ const sendMessageToBackend = async (message) => {
       )}
 
       {/* =================================================
+
           MAIN
+
       ================================================= */}
 
       <main className="dashboard-layout">
         {/* =================================================
+
             LEFT
+
         ================================================= */}
 
         <aside className="left-side">
@@ -1609,30 +1978,37 @@ const sendMessageToBackend = async (message) => {
                   switch (item.text) {
                     case "Dashboard":
                       navigate("/");
+
                       break;
 
                     case "AI Chat":
                       setShowChat(true);
+
                       break;
 
                     case "Voice Command":
                       setShowVoice(true);
+
                       break;
 
                     case "System & Web":
                       setShowSystem(true);
+
                       break;
 
                     case "AI Analytics":
                       setShowAnalytics(true);
+
                       break;
 
                     case "File Analyzer":
                       setShowFileAnalyzer(true);
+
                       break;
 
                     case "Settings":
                       setShowSettings(true);
+
                       break;
 
                     default:
@@ -1660,9 +2036,13 @@ const sendMessageToBackend = async (message) => {
 
             {[
               ["VOICE ENGINE", listening ? "ON" : "OFF"],
+
               ["VOICE MODE", voiceActive ? "ACTIVE" : "LOCKED"],
+
               ["AI API", backendStatus],
+
               ["NETWORK", networkStatus],
+
               ["SYSTEM", systemStatus],
             ].map(([name, value]) => (
               <div className="status-row" key={name}>
@@ -1694,7 +2074,9 @@ const sendMessageToBackend = async (message) => {
         </aside>
 
         {/* =================================================
+
             CENTER
+
         ================================================= */}
 
         <section className="center-stage">
@@ -1733,7 +2115,11 @@ const sendMessageToBackend = async (message) => {
 
             <p>
               VOICE ENGINE:{" "}
-              {voiceActive ? (listening ? "SHIFRA LISTENING" : "PROCESSING") : "OFF"}
+              {voiceActive
+                ? listening
+                  ? "SHIFRA LISTENING"
+                  : "PROCESSING"
+                : "OFF"}
             </p>
 
             <div className="equalizer">
@@ -1778,7 +2164,9 @@ const sendMessageToBackend = async (message) => {
         </section>
 
         {/* =================================================
+
             RIGHT
+
         ================================================= */}
 
         <aside className="right-side">
@@ -1863,7 +2251,9 @@ const sendMessageToBackend = async (message) => {
       </main>
 
       {/* =================================================
+
           CHAT MODAL
+
       ================================================= */}
 
       {showChat && (
@@ -1883,7 +2273,9 @@ const sendMessageToBackend = async (message) => {
       )}
 
       {/* =================================================
+
           VOICE ASSISTANT
+
       ================================================= */}
 
       {showVoice && (
@@ -1903,7 +2295,9 @@ const sendMessageToBackend = async (message) => {
       )}
 
       {/* =================================================
+
           SYSTEM
+
       ================================================= */}
 
       {showSystem && (
@@ -1923,7 +2317,9 @@ const sendMessageToBackend = async (message) => {
       )}
 
       {/* =================================================
+
           FILE ANALYZER
+
       ================================================= */}
 
       {showFileAnalyzer && (
@@ -1943,7 +2339,9 @@ const sendMessageToBackend = async (message) => {
       )}
 
       {/* =================================================
+
           ANALYTICS
+
       ================================================= */}
 
       {showAnalytics && (
@@ -1963,7 +2361,9 @@ const sendMessageToBackend = async (message) => {
       )}
 
       {/* =================================================
+
           SETTINGS
+
       ================================================= */}
 
       {showSettings && (
