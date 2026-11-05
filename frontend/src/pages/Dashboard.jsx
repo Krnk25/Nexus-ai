@@ -22,8 +22,6 @@ import VoiceAssistant from "../components/VoiceAssistant/VoiceAssistant";
 
 import Chat from "./Chat";
 
-import SystemAPI from "../services/systemApi";
-
 import "../styles/dashboard.css";
 
 import {
@@ -1022,7 +1020,6 @@ export default function Dashboard() {
      SYSTEM COMMAND
 
   ======================================================= */
-
   const runSystemCommand = async (command) => {
     const finalCommand = safeText(command, "").trim();
 
@@ -1035,25 +1032,70 @@ export default function Dashboard() {
 
       console.log("🖥️ SYSTEM COMMAND:", finalCommand);
 
-      const response = await SystemAPI.post("/system/run", {
-        command,
-      });
+      // Electron Desktop mode
+      if (window.nexusAI?.runSystemCommand) {
+        const response = await window.nexusAI.runSystemCommand(finalCommand);
 
-      console.log("🖥️ SYSTEM RESPONSE:", response.data);
+        console.log("🖥️ DESKTOP RESPONSE:", response);
 
-      setSystemStatus("READY");
+        setSystemStatus(response?.success ? "READY" : "ERROR");
 
-      return getAIReply(response.data) || "Command executed successfully.";
-    } catch (error) {
-      console.error("❌ System command error:", error);
+        return response?.message || "System command failed.";
+      }
+
+      // Normal Browser mode: websites only
+      const text = finalCommand
+        .toLowerCase()
+        .replace(
+          /\b(open|start|launch|please|pls|kholo|khol|karan|bhai)\b/g,
+          " ",
+        )
+        .replace(/[.,!?]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      const websites = [
+        { keys: ["youtube", "yt"], url: "https://www.youtube.com" },
+        { keys: ["google"], url: "https://www.google.com" },
+        { keys: ["github", "git hub"], url: "https://github.com" },
+        { keys: ["gmail", "mail"], url: "https://mail.google.com" },
+        { keys: ["chatgpt", "chat gpt"], url: "https://chatgpt.com" },
+        { keys: ["instagram", "insta"], url: "https://www.instagram.com" },
+        { keys: ["whatsapp", "whats app"], url: "https://web.whatsapp.com" },
+        {
+          keys: ["linkedin", "linked in", "linkdin"],
+          url: "https://www.linkedin.com",
+        },
+        { keys: ["facebook", "fb"], url: "https://www.facebook.com" },
+        { keys: ["telegram"], url: "https://web.telegram.org" },
+        { keys: ["twitter", "x"], url: "https://x.com" },
+      ];
+
+      const website = websites.find((item) =>
+        item.keys.some((key) => text === key || text.endsWith(` ${key}`)),
+      );
+
+      if (website) {
+        const newTab = window.open(website.url, "_blank");
+
+        if (newTab) {
+          newTab.opener = null;
+          setSystemStatus("READY");
+          return "Website opened successfully.";
+        }
+
+        setSystemStatus("ERROR");
+        return "Browser blocked the popup. Please allow popups for Nexus AI and try again.";
+      }
 
       setSystemStatus("ERROR");
 
-      return (
-        error.response?.data?.message ||
-        error.response?.data?.error ||
-        "System command failed."
-      );
+      return "Desktop applications can only be opened in Nexus AI Desktop. Please use the desktop app.";
+    } catch (error) {
+      console.error("❌ System command error:", error);
+      setSystemStatus("ERROR");
+
+      return error.message || "System command failed.";
     }
   };
 
@@ -1138,13 +1180,11 @@ export default function Dashboard() {
 
         as text command.
 
-        askGeminiDirect()
+        
 
               ↓
-
-        runLocalCommand()
-
-              ↓
+runLocalcommnandd()
+                    ↓
 
         runSystemCommand()
 
@@ -1371,21 +1411,12 @@ export default function Dashboard() {
 
   const runLocalCommand = async (command) => {
     const original = safeText(command, "").trim();
-
     const cmd = original.toLowerCase();
-
     const language = detectVoiceLang(original);
 
-    if (!original) {
-      return null;
-    }
+    if (!original) return null;
 
-    /* =====================================================
-
-       DATE
-
-    ===================================================== */
-
+    // DATE
     if (
       cmd.includes("today date") ||
       cmd.includes("today's date") ||
@@ -1397,12 +1428,7 @@ export default function Dashboard() {
       return getCurrentDateReply(language);
     }
 
-    /* =====================================================
-
-       TIME
-
-    ===================================================== */
-
+    // TIME
     if (
       cmd.includes("current time") ||
       cmd.includes("what time is it") ||
@@ -1414,12 +1440,7 @@ export default function Dashboard() {
       return getCurrentTimeReply(language);
     }
 
-    /* =====================================================
-
-       MY NAME
-
-    ===================================================== */
-
+    // MY NAME
     if (
       cmd.includes("my name") ||
       cmd.includes("mera naam") ||
@@ -1429,19 +1450,12 @@ export default function Dashboard() {
     ) {
       const profile = getPersonalData();
 
-      if (profile.name) {
-        return `Aapka naam ${profile.name} hai.`;
-      }
-
-      return "Mujhe aapka naam database me nahi mila.";
+      return profile.name
+        ? `Aapka naam ${profile.name} hai.`
+        : "Mujhe aapka naam database me nahi mila.";
     }
 
-    /* =====================================================
-
-       DEVELOPER
-
-    ===================================================== */
-
+    // DEVELOPER
     if (
       cmd.includes("who developed you") ||
       cmd.includes("who created you") ||
@@ -1456,12 +1470,33 @@ export default function Dashboard() {
         : "Developer information database me available nahi hai.";
     }
 
-    /* =====================================================
+    // DIRECT WEB COMMANDS
+    const webCommands = [
+      {
+        patterns: ["open youtube", "youtube kholo", "youtube khol"],
+        url: "https://www.youtube.com",
+        name: "YouTube",
+      },
+      {
+        patterns: ["open google", "google kholo", "google khol"],
+        url: "https://www.google.com",
+        name: "Google",
+      },
+      {
+        patterns: ["open github", "github kholo", "github khol"],
+        url: "https://github.com",
+        name: "GitHub",
+      },
+    ];
 
-       WEATHER
+    for (const item of webCommands) {
+      if (item.patterns.some((p) => cmd.includes(p))) {
+        window.open(item.url, "_blank", "noopener,noreferrer");
+        return `Opening ${item.name}.`;
+      }
+    }
 
-    ===================================================== */
-
+    // WEATHER
     if (
       cmd.includes("weather") ||
       cmd.includes("mausam") ||
@@ -1471,60 +1506,22 @@ export default function Dashboard() {
       return await runSystemCommand(original);
     }
 
-    /* =====================================================
-
-       SYSTEM / WEB COMMANDS
-
-       IMPORTANT:
-
-       No URLs here.
-
-       No window.open here.
-
-       systemController.js is the source of truth.
-
-    ===================================================== */
-
+    // COMPUTER SYSTEM COMMANDS
     const systemCommandPatterns = [
-      "open ",
-
-      "start ",
-
-      "launch ",
-
-      "kholo",
-
-      "खोल",
-
-      "open youtube",
-
-      "open google",
-
-      "open github",
-
       "open chrome",
-
       "open calculator",
-
       "open notepad",
-
-      "youtube",
-
-      "google",
-
-      "github",
-
-      "chrome",
-
-      "calculator",
-
-      "notepad",
-
+      "start chrome",
+      "start calculator",
+      "start notepad",
+      "launch chrome",
+      "launch calculator",
+      "launch notepad",
       "lock",
-
       "restart",
-
       "shutdown",
+      "खोल",
+      "खोलो",
     ];
 
     const isSystemCommand = systemCommandPatterns.some((pattern) =>
@@ -1533,55 +1530,11 @@ export default function Dashboard() {
 
     if (isSystemCommand) {
       console.log("🔥 SYSTEM COMMAND DETECTED:", original);
-
       return await runSystemCommand(original);
     }
 
-    /* =====================================================
-
-       NORMAL AI QUESTION
-
-    ===================================================== */
-
+    // NORMAL AI QUESTION
     return null;
-  };
-
-  /* =======================================================
-
-     SEND TO OPENAI BACKEND
-
-  ======================================================= */
-
-  const sendMessageToBackend = async (message) => {
-    try {
-      const response = await axios.post(
-        `${API_URL}/chat`,
-
-        {
-          message: message,
-
-          prompt: message,
-
-          userId: "default-user",
-        },
-
-        { timeout: 60000 },
-      );
-
-      console.log("✅ Backend response:", response.data);
-
-      return response.data;
-    } catch (error) {
-      console.error(
-        "❌ Backend error:",
-
-        error.response?.status,
-
-        error.response?.data || error.message,
-      );
-
-      throw error;
-    }
   };
 
   /* =======================================================
@@ -1593,9 +1546,7 @@ export default function Dashboard() {
   const askGeminiDirect = async (question, voiceAlreadyAdded = false) => {
     const userQuestion = safeText(question, "").trim();
 
-    if (!userQuestion || thinkingRef.current) {
-      return;
-    }
+    if (!userQuestion || thinkingRef.current) return;
 
     const now = Date.now();
 
@@ -1608,14 +1559,11 @@ export default function Dashboard() {
 
     lastQuestionRef.current = {
       text: userQuestion,
-
       time: now,
     };
 
     thinkingRef.current = true;
-
     setSending(true);
-
     setInput(userQuestion);
 
     if (!voiceAlreadyAdded) {
@@ -1625,53 +1573,43 @@ export default function Dashboard() {
     addMessage("🤖 Shifra Thinking...");
 
     try {
-      /* =================================================
-
-         FIRST: LOCAL / SYSTEM COMMAND
-
-      ================================================= */
-
+      // FIRST: LOCAL COMMANDS
       const localReply = await runLocalCommand(userQuestion);
 
-      if (localReply) {
+      if (localReply !== null && localReply !== undefined) {
         replaceLastMessage(`🤖 ${localReply}`);
 
         addToConversationHistory("user", userQuestion);
-
         addToConversationHistory("assistant", localReply);
 
         speak(localReply);
-
         return;
       }
 
-      /* =================================================
-
-         SECOND: OPENAI
-
-      ================================================= */
-
+      // SECOND: AI BACKEND
       const response = await sendMessageToBackend(userQuestion);
 
-      const reply = getAIReply(response);
+      const reply =
+        getAIReply(response) || "Sorry, I could not generate a response.";
 
       setBackendStatus("ACTIVE");
 
       replaceLastMessage(`🤖 ${reply}`);
 
       addToConversationHistory("user", userQuestion);
-
       addToConversationHistory("assistant", reply);
 
       speak(reply);
     } catch (error) {
-      console.error("❌ AI error:", error);
+      console.error("❌ AI ERROR:", error);
 
       const errorMessage =
         error.response?.data?.message ||
         error.response?.data?.error ||
-        error.message ||
-        "Karan Backend server error aa raha hai.";
+        (error.code === "ECONNABORTED"
+          ? "Request timed out. Please try again."
+          : error.message) ||
+        "Shifra encountered an error.";
 
       setBackendStatus("FAILED");
 
@@ -1680,25 +1618,14 @@ export default function Dashboard() {
       speak(errorMessage);
     } finally {
       thinkingRef.current = false;
-
       setSending(false);
-
-      /*
-
-        If voice mode is active and no speech
-
-        is currently running, recognition can restart.
-
-      */
 
       if (voiceActiveRef.current && !speakingRef.current) {
         restartVoiceRecognition();
       }
     }
   };
-
   /* =======================================================
-
      TEXT SEND
 
   ======================================================= */
