@@ -811,40 +811,57 @@ export default function Dashboard() {
     }, 700);
   };
 
-  /* =========================================================
+/* =========================================================
    ELECTRON SYSTEM COMMAND
    All website and desktop commands handled by main.cjs
 ========================================================= */
 
-  
-/* =======================================================
-   ELECTRON SYSTEM COMMAND
-======================================================= */
+const isDirectSystemCommand = (command) => {
+  const text = safeText(command, "").trim().toLowerCase();
+
+  if (!text) return false;
+
+  const actionPattern =
+    /\b(open|start|launch|run|khol|kholo|kholna|chalu karo|shuru karo)\b/i;
+
+  const targetPattern =
+    /\b(google|youtube|yt|instagram|facebook|whatsapp|telegram|twitter|linkedin|gmail|github|chatgpt|gemini|claude|copilot|perplexity|netflix|spotify|discord|amazon|flipkart|canva|notion|wikipedia|stackoverflow|gitlab|npm|vercel|render|replit|bing|yahoo|duckduckgo|snapchat|pinterest|reddit|threads|drive|docs|sheets|slides|calendar|maps|photos|meet|netlify|codesandbox|huggingface|prime|hotstar|twitch|meesho|myntra|wordpress|notepad|note pad|calculator|calc|paint|ms paint|file explorer|explorer|files|task manager|taskmgr|control panel|cmd|command prompt|powershell|power shell|regedit|registry editor|character map|charmap|snipping tool|magnifier|on screen keyboard|onscreen keyboard|media player|windows media player|vscode|vs code|visual studio code|chrome|google chrome|settings|setting|camera|windows camera|windows photos|lock screen|lock laptop|lock computer)\b/i;
+
+  return actionPattern.test(text) && targetPattern.test(text);
+};
 
 const runSystemCommand = async (command) => {
   const original = safeText(command, "").trim();
 
-  if (!original) return "Please provide a command.";
+  if (!original) {
+    return "Please provide a command.";
+  }
 
   try {
     setSystemStatus("PROCESSING");
 
-    // Electron connection check
-    if (!window.nexusAI?.runSystemCommand) {
+    if (
+      !window.nexusAI ||
+      typeof window.nexusAI.runSystemCommand !== "function"
+    ) {
       setSystemStatus("ERROR");
 
-      return "Electron connection unavailable. Please run Nexus AI in Electron desktop mode.";
+      return "Electron connection unavailable. Please launch Nexus AI Desktop mode.";
     }
 
-    // Send command to main.cjs
-    const response = await window.nexusAI.runSystemCommand(original);
+    console.log("NEXUS SYSTEM COMMAND:", original);
 
-    if (!response?.success) {
+    const response =
+      await window.nexusAI.runSystemCommand(original);
+
+    if (!response || !response.success) {
       setSystemStatus("ERROR");
-      return response?.message || "Command execution failed.";
+
+      return response?.message || "System command failed.";
     }
 
     setSystemStatus("READY");
+
     return response.message || "Command executed successfully.";
 
   } catch (error) {
@@ -856,16 +873,8 @@ const runSystemCommand = async (command) => {
   }
 };
 
-/* =======================================================
-   DETECT DIRECT SYSTEM COMMAND
-======================================================= */
 
 
-const isDirectSystemCommand = (command) => {
-  const text = safeText(command, "").trim();
-
-  return /^(?:(?:hey|hi|bhai)\s+)*(?:please\s+)?(?:open|start|launch|run|khol|kholo|kholna|chalu karo|shuru karo)\b/i.test(text);
-};
   /* =======================================================
      START / STOP VOICE
   ======================================================= */
@@ -1030,12 +1039,11 @@ const isDirectSystemCommand = (command) => {
 
     // WEBSITE + DESKTOP APP COMMANDS
     // Uses existing Electron main.cjs handler.
-   // WEBSITE + DESKTOP APP COMMANDS
-if (isDirectSystemCommand(original)) {
-  console.log("🔥 SYSTEM COMMAND DETECTED:", original);
+    if (isDirectSystemCommand(original)) {
+      console.log("🔥 SYSTEM COMMAND DETECTED:", original);
 
-  return await runSystemCommand(original);
-}
+      return await runSystemCommand(original);
+    }
 
     // WEATHER
     // Let Gemini handle weather questions.
