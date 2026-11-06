@@ -1,25 +1,15 @@
+import axios from "axios";
 import { useEffect, useMemo, useRef, useState } from "react";
-
 import { useNavigate } from "react-router-dom";
 
-import axios from "axios";
-
 import AIAnalytics from "../components/AIAnalytics/AIAnalytics";
-
 import ActivityLogs from "../components/ActivityLogs/ActivityLogs";
-
 import FileAnalyzer from "../components/FileAnalyzer/FileAnalyzer";
-
 import MemoryManager from "../components/MemoryManager/MemoryManager";
-
 import Profile, { getUserProfile } from "../components/Profile/Profile";
-
 import Settings from "../components/Settings/Settings";
-
 import SystemControl from "../components/SystemControl/SystemControl";
-
 import VoiceAssistant from "../components/VoiceAssistant/VoiceAssistant";
-
 import Chat from "./Chat";
 
 import "../styles/dashboard.css";
@@ -44,9 +34,7 @@ import {
 } from "react-icons/fa";
 
 /* =========================================================
-
    BACKEND URL
-
 ========================================================= */
 
 const API_BASE_URL = (
@@ -55,109 +43,37 @@ const API_BASE_URL = (
 ).replace(/\/+$/, "");
 
 const API_ROOT_URL = API_BASE_URL.replace(/\/api$/i, "");
-
 const API_URL = `${API_ROOT_URL}/api`;
-
 const HEALTH_URL = API_ROOT_URL;
 
 /* =========================================================
-
    MENU
-
 ========================================================= */
 
 const menu = [
-  {
-    icon: <FaHome />,
-
-    text: "Dashboard",
-  },
-
-  {
-    icon: <FaComments />,
-
-    text: "AI Chat",
-  },
-
-  {
-    icon: <FaMicrophone />,
-
-    text: "Voice Command",
-  },
-
-  {
-    icon: <FaDesktop />,
-
-    text: "System & Web",
-  },
-
-  {
-    icon: <FaChartBar />,
-
-    text: "File Analyzer",
-  },
-
-  {
-    icon: <FaChartLine />,
-
-    text: "AI Analytics",
-  },
-
-  {
-    icon: <FaCog />,
-
-    text: "Settings",
-  },
+  { icon: <FaHome />, text: "Dashboard" },
+  { icon: <FaComments />, text: "AI Chat" },
+  { icon: <FaMicrophone />, text: "Voice Command" },
+  { icon: <FaDesktop />, text: "System & Web" },
+  { icon: <FaChartBar />, text: "File Analyzer" },
+  { icon: <FaChartLine />, text: "AI Analytics" },
+  { icon: <FaCog />, text: "Settings" },
 ];
 
 /* =========================================================
-
    QUICK COMMANDS
-
-   IMPORTANT:
-
-   No URL or system command logic here.
-
-   Everything goes through runSystemCommand().
-
 ========================================================= */
 
 const quickCommands = [
-  {
-    icon: <FaGoogle />,
-
-    text: "Open Google",
-  },
-
-  {
-    icon: <FaYoutube />,
-
-    text: "Open YouTube",
-  },
-
-  {
-    icon: <FaGithub />,
-
-    text: "Open GitHub",
-  },
-
-  {
-    icon: <FaDesktop />,
-
-    text: "What is React?",
-  },
-
-  {
-    icon: <FaCloudSun />,
-
-    text: "Weather Update",
-  },
+  { icon: <FaGoogle />, text: "Open Google" },
+  { icon: <FaYoutube />, text: "Open YouTube" },
+  { icon: <FaGithub />, text: "Open GitHub" },
+  { icon: <FaDesktop />, text: "What is React?" },
+  { icon: <FaCloudSun />, text: "Weather Update" },
 ];
 
 /* =========================================================
-
    MATRIX
-
 ========================================================= */
 
 const makeBinary = () =>
@@ -166,82 +82,57 @@ const makeBinary = () =>
   );
 
 /* =========================================================
-
    DASHBOARD
-
 ========================================================= */
 
 export default function Dashboard() {
   const navigate = useNavigate();
 
   /* =======================================================
-
      MODALS
-
   ======================================================= */
 
   const [showChat, setShowChat] = useState(false);
-
   const [showVoice, setShowVoice] = useState(false);
-
   const [showSystem, setShowSystem] = useState(false);
-
   const [showFileAnalyzer, setShowFileAnalyzer] = useState(false);
-
   const [showSettings, setShowSettings] = useState(false);
-
   const [showProfile, setShowProfile] = useState(false);
-
   const [showMemory, setShowMemory] = useState(false);
-
   const [showActivity, setShowActivity] = useState(false);
-
   const [showAnalytics, setShowAnalytics] = useState(false);
 
   /* =======================================================
-
      PROFILE
-
   ======================================================= */
 
   const [databaseProfile, setDatabaseProfile] = useState(null);
-
   const [profileLoading, setProfileLoading] = useState(true);
 
   /* =======================================================
-
      CHAT
-
   ======================================================= */
 
   const [input, setInput] = useState("");
 
   const [messages, setMessages] = useState([
     "NEXUS AI v3.0.0",
-
     "Hello Karan 👋",
-
-    "karan Click mic and ask anything. SHIFRA will answer directly.",
+    "Karan Click mic and ask anything. SHIFRA will answer directly.",
   ]);
 
   const [sending, setSending] = useState(false);
 
   /* =======================================================
-
      VOICE
-
   ======================================================= */
 
   const [listening, setListening] = useState(false);
-
   const [voiceReady, setVoiceReady] = useState(false);
-
   const [voiceActive, setVoiceActive] = useState(false);
 
   /* =======================================================
-
      SYSTEM
-
   ======================================================= */
 
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
@@ -251,82 +142,51 @@ export default function Dashboard() {
   );
 
   const [backendStatus, setBackendStatus] = useState("CHECKING");
-
   const [systemStatus, setSystemStatus] = useState("READY");
 
   /* =======================================================
-
      REFS
-
   ======================================================= */
 
   const consoleEndRef = useRef(null);
-
   const recognitionRef = useRef(null);
-
   const voiceActiveRef = useRef(false);
-
   const listeningRef = useRef(false);
-
   const speakingRef = useRef(false);
-
   const thinkingRef = useRef(false);
-
   const restartTimerRef = useRef(null);
-
   const voicesRef = useRef([]);
-
   const conversationHistoryRef = useRef([]);
 
   const lastQuestionRef = useRef({
     text: "",
-
     time: 0,
   });
 
   /* =======================================================
-
      MATRIX RAIN
-
   ======================================================= */
 
   const rain = useMemo(
     () =>
       Array.from({ length: 60 }).map((_, index) => ({
         id: index,
-
         left: `${(index / 60) * 100}%`,
-
-        // eslint-disable-next-line react-hooks/purity
-
         duration: `${7 + Math.random() * 6}s`,
-
         delay: `${Math.random() * 5}s`,
-
         text: makeBinary(),
       })),
-
     [],
   );
 
   /* =======================================================
-
      LOAD PROFILE
-
   ======================================================= */
-
-  /* =========================================================
-
-   LOAD PROFILE — CACHE + MONGODB
-
-========================================================= */
 
   useEffect(() => {
     let cancelled = false;
 
     const loadProfile = async () => {
-      // First load locally cached profile so AI has data immediately.
-
       try {
         const cachedProfile = getUserProfile();
 
@@ -340,19 +200,11 @@ export default function Dashboard() {
       try {
         setProfileLoading(true);
 
-        const response = await axios.get(
-          `${API_URL}/profile`,
-
-          {
-            params: { userId: "default-user" },
-          },
-        );
+        const response = await axios.get(`${API_URL}/profile`, {
+          params: { userId: "default-user" },
+        });
 
         if (cancelled) return;
-
-        // Do not mistake { success: true, profile: null }
-
-        // for an actual profile.
 
         const serverProfile = response.data?.profile;
 
@@ -363,15 +215,10 @@ export default function Dashboard() {
         ) {
           setDatabaseProfile(serverProfile);
 
-          localStorage.setItem(
-            "nexus_profile",
-
-            JSON.stringify(serverProfile),
-          );
+          localStorage.setItem("nexus_profile", JSON.stringify(serverProfile));
 
           console.log("✅ Profile loaded from MongoDB:", {
             nameAvailable: Boolean(serverProfile.name),
-
             fields: Object.keys(serverProfile).length,
           });
         } else {
@@ -382,11 +229,8 @@ export default function Dashboard() {
       } catch (error) {
         console.error(
           "MongoDB profile fetch error:",
-
           error.response?.data || error.message,
         );
-
-        // Keep the locally cached profile if the backend fails.
 
         if (!cancelled) {
           try {
@@ -404,39 +248,26 @@ export default function Dashboard() {
 
     loadProfile();
 
-    // Profile.jsx dispatches this event after saving.
-
     const handleProfileUpdated = () => {
       try {
         setDatabaseProfile(getUserProfile());
-
         console.log("🔄 Dashboard profile refreshed.");
       } catch (error) {
         console.error("Profile refresh error:", error);
       }
     };
 
-    window.addEventListener(
-      "nexus-profile-updated",
-
-      handleProfileUpdated,
-    );
+    window.addEventListener("nexus-profile-updated", handleProfileUpdated);
 
     return () => {
       cancelled = true;
 
-      window.removeEventListener(
-        "nexus-profile-updated",
-
-        handleProfileUpdated,
-      );
+      window.removeEventListener("nexus-profile-updated", handleProfileUpdated);
     };
   }, []);
 
   /* =======================================================
-
      CLOCK
-
   ======================================================= */
 
   useEffect(() => {
@@ -448,9 +279,7 @@ export default function Dashboard() {
   }, []);
 
   /* =======================================================
-
      NETWORK
-
   ======================================================= */
 
   useEffect(() => {
@@ -459,25 +288,22 @@ export default function Dashboard() {
     };
 
     window.addEventListener("online", updateNetwork);
-
     window.addEventListener("offline", updateNetwork);
 
     return () => {
       window.removeEventListener("online", updateNetwork);
-
       window.removeEventListener("offline", updateNetwork);
     };
   }, []);
 
   /* =======================================================
-
      BACKEND HEALTH
-
   ======================================================= */
 
   useEffect(() => {
     let cancelled = false;
     let checking = false;
+
     const checkBackend = async () => {
       if (cancelled || checking) return;
 
@@ -502,14 +328,15 @@ export default function Dashboard() {
       } catch (error) {
         if (!cancelled) {
           setBackendStatus("FAILED");
-
           console.error("❌ Backend health check error:", error.message);
         }
       } finally {
         checking = false;
       }
     };
+
     checkBackend();
+
     const timer = setInterval(checkBackend, 30000);
 
     return () => {
@@ -519,9 +346,7 @@ export default function Dashboard() {
   }, []);
 
   /* =======================================================
-
      LOAD TTS VOICES
-
   ======================================================= */
 
   useEffect(() => {
@@ -543,9 +368,7 @@ export default function Dashboard() {
   }, []);
 
   /* =======================================================
-
      CLEANUP
-
   ======================================================= */
 
   useEffect(() => {
@@ -559,7 +382,7 @@ export default function Dashboard() {
       try {
         recognitionRef.current?.stop();
       } catch {
-        // ignore
+        // Ignore cleanup errors
       }
 
       window.speechSynthesis?.cancel();
@@ -567,9 +390,7 @@ export default function Dashboard() {
   }, []);
 
   /* =======================================================
-
      SAFE TEXT
-
   ======================================================= */
 
   const safeText = (value, fallback = "") => {
@@ -600,9 +421,7 @@ export default function Dashboard() {
   };
 
   /* =======================================================
-
      PERSONAL DATA
-
   ======================================================= */
 
   const getPersonalData = () => {
@@ -621,6 +440,7 @@ export default function Dashboard() {
     };
 
     let localProfile = {};
+
     try {
       localProfile = getUserProfile() || {};
     } catch (error) {
@@ -628,6 +448,7 @@ export default function Dashboard() {
     }
 
     const profile = databaseProfile || {};
+
     return Object.fromEntries(
       Object.keys(emptyProfile).map((key) => [
         key,
@@ -637,9 +458,53 @@ export default function Dashboard() {
   };
 
   /* =======================================================
+     SEND MESSAGE TO BACKEND — GEMINI API
+======================================================= */
 
+  const sendMessageToBackend = async (message) => {
+    try {
+      const personalData = getPersonalData();
+
+      const response = await axios.post(
+        `${API_URL}/ai/chat`,
+        {
+          message,
+          history: conversationHistoryRef.current,
+          personalData,
+          profile: personalData,
+          userId: "default-user",
+        },
+        {
+          timeout: 60000,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      if (!response.data?.success) {
+        throw new Error(
+          response.data?.message ||
+            response.data?.error ||
+            "AI response failed.",
+        );
+      }
+
+      console.log("✅ Gemini API Response:", response.data);
+
+      return response.data;
+    } catch (error) {
+      console.error(
+        "❌ Gemini Backend Error:",
+        error.response?.data || error.message,
+      );
+
+      throw error;
+    }
+  };
+
+  /* =======================================================
      AI REPLY
-
   ======================================================= */
 
   const getAIReply = (data) => {
@@ -648,12 +513,10 @@ export default function Dashboard() {
       return "AI se empty response mila.";
     }
 
-    // Handle plain text response
     if (typeof data === "string") {
       return data.trim() || "AI se empty response mila.";
     }
 
-    // Extract text from nested backend response formats
     const extractText = (value, depth = 0) => {
       if (depth > 8 || value == null) return "";
 
@@ -666,6 +529,7 @@ export default function Dashboard() {
           const text = extractText(item, depth + 1);
           if (text) return text;
         }
+
         return "";
       }
 
@@ -691,6 +555,7 @@ export default function Dashboard() {
       for (const key of keys) {
         if (value[key] !== undefined && value[key] !== null) {
           const result = extractText(value[key], depth + 1);
+
           if (result) return result;
         }
       }
@@ -713,9 +578,9 @@ export default function Dashboard() {
   };
 
   /* =======================================================
-   ADD MESSAGE
-======================================================= */
-  // ADD MESSAGE
+     ADD MESSAGE
+  ======================================================= */
+
   const addMessage = (message) => {
     const finalMessage = safeText(message, "");
 
@@ -725,9 +590,7 @@ export default function Dashboard() {
   };
 
   /* =======================================================
-
      REPLACE LAST MESSAGE
-
   ======================================================= */
 
   const replaceLastMessage = (message) => {
@@ -747,9 +610,7 @@ export default function Dashboard() {
   };
 
   /* =======================================================
-
      CONVERSATION HISTORY
-
   ======================================================= */
 
   const addToConversationHistory = (role, content) => {
@@ -759,19 +620,15 @@ export default function Dashboard() {
 
     conversationHistoryRef.current = [
       ...conversationHistoryRef.current,
-
       {
         role,
-
         content: finalContent,
       },
     ].slice(-16);
   };
 
   /* =======================================================
-
      LANGUAGE
-
   ======================================================= */
 
   const detectVoiceLang = (text) => {
@@ -779,89 +636,49 @@ export default function Dashboard() {
 
     const marathiWords = [
       "काय",
-
       "कसा",
-
       "कशी",
-
       "आहे",
-
       "मला",
-
       "तुला",
-
       "सांग",
-
       "कर",
-
       "मराठी",
-
       "महाराष्ट्र",
-
       "नाव",
-
       "वेळ",
-
       "तारीख",
-
       "वाजले",
-
       "kay",
-
       "kasa",
-
       "kashi",
-
       "mala",
-
       "tula",
-
       "sang",
-
       "marathi",
-
       "maharashtra",
     ];
 
     const hindiWords = [
       "क्या",
-
       "कैसे",
-
       "कैसी",
-
       "है",
-
       "मुझे",
-
       "तुम",
-
       "बताओ",
-
       "करो",
-
       "हिंदी",
-
       "समय",
-
       "नाम",
-
       "तारीख",
-
       "अभी",
-
       "kya",
-
       "kaise",
-
       "mujhe",
-
       "tum",
-
       "batao",
-
       "hindi",
-
       "samay",
     ];
 
@@ -877,9 +694,7 @@ export default function Dashboard() {
   };
 
   /* =======================================================
-
      FEMALE / INDIAN VOICE
-
   ======================================================= */
 
   const getIndianFemaleVoice = (lang) => {
@@ -889,21 +704,13 @@ export default function Dashboard() {
 
     const femaleNames = [
       "aarohi",
-
       "heera",
-
       "kalpana",
-
       "swara",
-
       "neerja",
-
       "sunita",
-
       "zira",
-
       "susan",
-
       "female",
     ];
 
@@ -921,9 +728,7 @@ export default function Dashboard() {
   };
 
   /* =======================================================
-
      SPEAK
-
   ======================================================= */
 
   const speak = (replyText) => {
@@ -935,7 +740,6 @@ export default function Dashboard() {
 
     const cleanText = finalText.replace(
       /```[\s\S]*?```/g,
-
       "Code block generated in console.",
     );
 
@@ -946,11 +750,8 @@ export default function Dashboard() {
     const utterance = new SpeechSynthesisUtterance(cleanText);
 
     utterance.lang = language;
-
     utterance.rate = 0.92;
-
     utterance.pitch = 1.15;
-
     utterance.volume = 1;
 
     const voice = getIndianFemaleVoice(language);
@@ -961,13 +762,11 @@ export default function Dashboard() {
 
     utterance.onstart = () => {
       speakingRef.current = true;
-
       setInput("NEXUS AI is speaking...");
     };
 
     utterance.onend = () => {
       speakingRef.current = false;
-
       setInput("");
 
       if (voiceActiveRef.current) {
@@ -977,7 +776,6 @@ export default function Dashboard() {
 
     utterance.onerror = () => {
       speakingRef.current = false;
-
       setInput("");
 
       if (voiceActiveRef.current) {
@@ -989,9 +787,7 @@ export default function Dashboard() {
   };
 
   /* =======================================================
-
      RESTART VOICE
-
   ======================================================= */
 
   const restartVoiceRecognition = () => {
@@ -1015,293 +811,146 @@ export default function Dashboard() {
     }, 700);
   };
 
+  const isDirectSystemCommand = (command = "") => {
+    const text = command.toLowerCase().trim();
+
+    const targets = [
+      "youtube",
+      "yt",
+      "google",
+      "github",
+      "gmail",
+      "chatgpt",
+      "instagram",
+      "whatsapp",
+      "linkedin",
+      "facebook",
+      "telegram",
+      "twitter",
+      "chrome",
+      "google chrome",
+      "notepad",
+      "note pad",
+      "calculator",
+      "calc",
+      "file explorer",
+      "explorer",
+      "files",
+      "paint",
+      "ms paint",
+      "task manager",
+      "taskmgr",
+      "control panel",
+      "settings",
+      "setting",
+      "vs code",
+      "vscode",
+      "visual studio code",
+      "cmd",
+      "command prompt",
+      "lock screen",
+      "lock laptop",
+      "lock computer",
+    ];
+
+    const actionWords = [
+      "open",
+      "start",
+      "launch",
+      "please",
+      "run",
+      "kholo",
+      "khol",
+      "kholna",
+      "chalu",
+      "shuru",
+      "karo",
+      "kar do",
+      "dikhao",
+      "open karo",
+      "khul ja",
+    ];
+
+    const hasTarget = targets.some((target) => text.includes(target));
+
+    const hasAction = actionWords.some((word) => text.includes(word));
+
+    return hasTarget && (hasAction || targets.includes(text));
+  };
+
   /* =======================================================
-
      SYSTEM COMMAND
-
   ======================================================= */
   const runSystemCommand = async (command) => {
-    const finalCommand = safeText(command, "").trim();
+    const original = safeText(command, "").trim();
 
-    if (!finalCommand) {
-      return "No command received.";
-    }
+    if (!original) return "Please provide a command.";
 
     try {
       setSystemStatus("PROCESSING");
 
-      console.log("🖥️ SYSTEM COMMAND:", finalCommand);
-
-      // Electron Desktop mode
+      // Electron desktop mode
       if (window.nexusAI?.runSystemCommand) {
-        const response = await window.nexusAI.runSystemCommand(finalCommand);
+        const response = await window.nexusAI.runSystemCommand(original);
 
-        console.log("🖥️ DESKTOP RESPONSE:", response);
-
-        setSystemStatus(response?.success ? "READY" : "ERROR");
-
-        return response?.message || "System command failed.";
-      }
-
-      // Normal Browser mode: websites only
-      const text = finalCommand
-        .toLowerCase()
-        .replace(
-          /\b(open|start|launch|please|pls|kholo|khol|karan|bhai)\b/g,
-          " ",
-        )
-        .replace(/[.,!?]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-
-      const websites = [
-        { keys: ["youtube", "yt"], url: "https://www.youtube.com" },
-        { keys: ["google"], url: "https://www.google.com" },
-        { keys: ["github", "git hub"], url: "https://github.com" },
-        { keys: ["gmail", "mail"], url: "https://mail.google.com" },
-        { keys: ["chatgpt", "chat gpt"], url: "https://chatgpt.com" },
-        { keys: ["instagram", "insta"], url: "https://www.instagram.com" },
-        { keys: ["whatsapp", "whats app"], url: "https://web.whatsapp.com" },
-        {
-          keys: ["linkedin", "linked in", "linkdin"],
-          url: "https://www.linkedin.com",
-        },
-        { keys: ["facebook", "fb"], url: "https://www.facebook.com" },
-        { keys: ["telegram"], url: "https://web.telegram.org" },
-        { keys: ["twitter", "x"], url: "https://x.com" },
-      ];
-
-      const website = websites.find((item) =>
-        item.keys.some((key) => text === key || text.endsWith(` ${key}`)),
-      );
-
-      if (website) {
-        const newTab = window.open(website.url, "_blank");
-
-        if (newTab) {
-          newTab.opener = null;
-          setSystemStatus("READY");
-          return "Website opened successfully.";
+        if (!response?.success) {
+          setSystemStatus("ERROR");
+          return response?.message || "Command failed.";
         }
 
-        setSystemStatus("ERROR");
-        return "Browser blocked the popup. Please allow popups for Nexus AI and try again.";
+        setSystemStatus("READY");
+        return response.message || "Command executed successfully.";
+      }
+
+      // Browser fallback: websites only
+      const websites = {
+        instagram: "https://www.instagram.com",
+        youtube: "https://www.youtube.com",
+        google: "https://www.google.com",
+        github: "https://github.com",
+        gmail: "https://mail.google.com",
+        whatsapp: "https://web.whatsapp.com",
+        linkedin: "https://www.linkedin.com",
+        facebook: "https://www.facebook.com",
+        chatgpt: "https://chatgpt.com",
+        telegram: "https://web.telegram.org",
+        twitter: "https://x.com",
+      };
+
+      const text = original.toLowerCase();
+
+      const site = Object.keys(websites).find((name) =>
+        new RegExp(`\\b${name}\\b`, "i").test(text),
+      );
+
+      if (site) {
+        window.open(websites[site], "_blank", "noopener,noreferrer");
+        setSystemStatus("READY");
+        return `Opening ${site}.`;
       }
 
       setSystemStatus("ERROR");
-
-      return "Desktop applications can only be opened in Nexus AI Desktop. Please use the desktop app.";
+      return "Electron connection unavailable. Desktop apps require Electron mode.";
     } catch (error) {
-      console.error("❌ System command error:", error);
+      console.error("SYSTEM COMMAND ERROR:", error);
       setSystemStatus("ERROR");
-
-      return error.message || "System command failed.";
+      return error.message || "Unable to execute command.";
     }
   };
 
   /* =======================================================
-
-     CREATE SPEECH RECOGNITION
-
-  ======================================================= */
-
-  const createRecognition = () => {
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-
-    if (!SpeechRecognition) {
-      addMessage("🤖 Speech Recognition supported नाही. Chrome वापरा.");
-
-      return null;
-    }
-
-    const recognition = new SpeechRecognition();
-
-    recognition.continuous = false;
-
-    recognition.interimResults = false;
-
-    // English commands like:
-
-    // Open YouTube
-
-    // Open Google
-
-    // Open GitHub
-
-    recognition.lang = "en-IN";
-
-    recognition.maxAlternatives = 1;
-
-    recognition.onstart = () => {
-      listeningRef.current = true;
-
-      setListening(true);
-
-      setVoiceReady(true);
-
-      setInput("🎙️ Listening...");
-    };
-
-    /* =====================================================
-
-       🔥 IMPORTANT VOICE RESULT
-
-    ===================================================== */
-
-    recognition.onresult = async (event) => {
-      const transcript = event.results?.[0]?.[0]?.transcript?.trim();
-
-      if (!transcript) {
-        return;
-      }
-
-      console.log("🎙️ VOICE COMMAND:", transcript);
-
-      try {
-        recognition.stop();
-      } catch {
-        // ignore
-      }
-
-      listeningRef.current = false;
-
-      setListening(false);
-
-      setInput(transcript);
-
-      addMessage(`🎤 ${transcript}`);
-
-      /*
-
-        IMPORTANT:
-
-        Voice command goes into the SAME pipeline
-
-        as text command.
-
-        
-
-              ↓
-runLocalcommnandd()
-                    ↓
-
-        runSystemCommand()
-
-              ↓
-
-        /api/system/run
-
-      */
-
-      await askGeminiDirect(transcript, true);
-    };
-
-    recognition.onerror = (event) => {
-      console.error("🎙️ Speech recognition error:", event.error);
-
-      listeningRef.current = false;
-
-      setListening(false);
-
-      if (!voiceActiveRef.current) {
-        return;
-      }
-
-      if (
-        event.error === "not-allowed" ||
-        event.error === "service-not-allowed"
-      ) {
-        voiceActiveRef.current = false;
-
-        setVoiceActive(false);
-
-        setVoiceReady(false);
-
-        addMessage(
-          "🤖 Microphone permission blocked. Chrome microphone permission Allow करा.",
-        );
-
-        return;
-      }
-
-      if (event.error === "no-speech") {
-        setInput("No speech detected...");
-      }
-
-      restartVoiceRecognition();
-    };
-
-    recognition.onend = () => {
-      listeningRef.current = false;
-
-      setListening(false);
-
-      if (
-        voiceActiveRef.current &&
-        !speakingRef.current &&
-        !thinkingRef.current
-      ) {
-        restartVoiceRecognition();
-      }
-    };
-
-    return recognition;
-  };
-
-  /* =======================================================
-
-     START RECOGNITION
-
-  ======================================================= */
-
-  const startVoiceRecognition = () => {
-    if (!voiceActiveRef.current) {
-      return;
-    }
-
-    if (speakingRef.current || thinkingRef.current || listeningRef.current) {
-      return;
-    }
-
-    const recognition = createRecognition();
-
-    if (!recognition) {
-      voiceActiveRef.current = false;
-
-      setVoiceActive(false);
-
-      setVoiceReady(false);
-
-      return;
-    }
-
-    recognitionRef.current = recognition;
-
-    try {
-      recognition.start();
-    } catch (error) {
-      console.error("Recognition start error:", error);
-    }
-  };
-
-  /* =======================================================
-
      START / STOP VOICE
-
   ======================================================= */
 
   const startVoice = () => {
     if (voiceActiveRef.current) {
       stopVoice();
-
       return;
     }
 
     voiceActiveRef.current = true;
 
     setVoiceActive(true);
-
     setVoiceReady(true);
 
     addMessage("🎙️ Voice mode activated.");
@@ -1313,27 +962,22 @@ runLocalcommnandd()
     voiceActiveRef.current = false;
 
     setVoiceActive(false);
-
     setListening(false);
-
     setVoiceReady(false);
 
     listeningRef.current = false;
-
     speakingRef.current = false;
-
     thinkingRef.current = false;
 
     if (restartTimerRef.current) {
       clearTimeout(restartTimerRef.current);
-
       restartTimerRef.current = null;
     }
 
     try {
       recognitionRef.current?.stop();
     } catch {
-      // ignore
+      // Ignore
     }
 
     recognitionRef.current = null;
@@ -1346,21 +990,15 @@ runLocalcommnandd()
   };
 
   /* =======================================================
-
      DATE
-
   ======================================================= */
 
   const getCurrentDateReply = (language) => {
     const date = new Date().toLocaleDateString(language, {
       timeZone: "Asia/Kolkata",
-
       weekday: "long",
-
       day: "numeric",
-
       month: "long",
-
       year: "numeric",
     });
 
@@ -1376,19 +1014,14 @@ runLocalcommnandd()
   };
 
   /* =======================================================
-
      TIME
-
   ======================================================= */
 
   const getCurrentTimeReply = (language) => {
     const time = new Date().toLocaleTimeString(language, {
       timeZone: "Asia/Kolkata",
-
       hour: "2-digit",
-
       minute: "2-digit",
-
       hour12: true,
     });
 
@@ -1404,11 +1037,8 @@ runLocalcommnandd()
   };
 
   /* =======================================================
-
      LOCAL / SYSTEM COMMAND ROUTER
-
   ======================================================= */
-
   const runLocalCommand = async (command) => {
     const original = safeText(command, "").trim();
     const cmd = original.toLowerCase();
@@ -1470,67 +1100,23 @@ runLocalcommnandd()
         : "Developer information database me available nahi hai.";
     }
 
-    // DIRECT WEB COMMANDS
-    const webCommands = [
-      {
-        patterns: ["open youtube", "youtube kholo", "youtube khol"],
-        url: "https://www.youtube.com",
-        name: "YouTube",
-      },
-      {
-        patterns: ["open google", "google kholo", "google khol"],
-        url: "https://www.google.com",
-        name: "Google",
-      },
-      {
-        patterns: ["open github", "github kholo", "github khol"],
-        url: "https://github.com",
-        name: "GitHub",
-      },
-    ];
+    // WEBSITE + DESKTOP APP COMMANDS
+    // Uses existing Electron main.cjs handler.
+    if (isDirectSystemCommand(original)) {
+      console.log("🔥 SYSTEM COMMAND DETECTED:", original);
 
-    for (const item of webCommands) {
-      if (item.patterns.some((p) => cmd.includes(p))) {
-        window.open(item.url, "_blank", "noopener,noreferrer");
-        return `Opening ${item.name}.`;
-      }
+      return await runSystemCommand(original);
     }
 
     // WEATHER
+    // Let Gemini handle weather questions.
     if (
       cmd.includes("weather") ||
       cmd.includes("mausam") ||
       cmd.includes("हवामान") ||
       cmd.includes("मौसम")
     ) {
-      return await runSystemCommand(original);
-    }
-
-    // COMPUTER SYSTEM COMMANDS
-    const systemCommandPatterns = [
-      "open chrome",
-      "open calculator",
-      "open notepad",
-      "start chrome",
-      "start calculator",
-      "start notepad",
-      "launch chrome",
-      "launch calculator",
-      "launch notepad",
-      "lock",
-      "restart",
-      "shutdown",
-      "खोल",
-      "खोलो",
-    ];
-
-    const isSystemCommand = systemCommandPatterns.some((pattern) =>
-      cmd.includes(pattern),
-    );
-
-    if (isSystemCommand) {
-      console.log("🔥 SYSTEM COMMAND DETECTED:", original);
-      return await runSystemCommand(original);
+      return null;
     }
 
     // NORMAL AI QUESTION
@@ -1538,9 +1124,7 @@ runLocalcommnandd()
   };
 
   /* =======================================================
-
      ASK AI / COMMAND ENGINE
-
   ======================================================= */
 
   const askGeminiDirect = async (question, voiceAlreadyAdded = false) => {
@@ -1574,6 +1158,7 @@ runLocalcommnandd()
 
     try {
       // FIRST: LOCAL COMMANDS
+
       const localReply = await runLocalCommand(userQuestion);
 
       if (localReply !== null && localReply !== undefined) {
@@ -1583,10 +1168,12 @@ runLocalcommnandd()
         addToConversationHistory("assistant", localReply);
 
         speak(localReply);
+
         return;
       }
 
       // SECOND: AI BACKEND
+
       const response = await sendMessageToBackend(userQuestion);
 
       const reply =
@@ -1625,9 +1212,9 @@ runLocalcommnandd()
       }
     }
   };
+
   /* =======================================================
      TEXT SEND
-
   ======================================================= */
 
   const handleSend = async (textValue = input) => {
@@ -1648,9 +1235,7 @@ runLocalcommnandd()
   };
 
   /* =======================================================
-
      CLEAR CONSOLE
-
   ======================================================= */
 
   const clearConsole = () => {
@@ -1658,7 +1243,6 @@ runLocalcommnandd()
 
     lastQuestionRef.current = {
       text: "",
-
       time: 0,
     };
 
@@ -1666,17 +1250,13 @@ runLocalcommnandd()
 
     setMessages([
       "NEXUS AI v3.0.0",
-
       "Console cleared.",
-
       "Karan Click mic and ask anything.",
     ]);
   };
 
   /* =======================================================
-
      STATUS
-
   ======================================================= */
 
   const getStatusWidth = (value) => {
@@ -1704,18 +1284,12 @@ runLocalcommnandd()
     value === "FAILED" || value === "OFFLINE" || value === "ERROR";
 
   /* =======================================================
-
      UI
-
   ======================================================= */
 
   return (
     <div className="nexus-page">
-      {/* =================================================
-
-          MATRIX
-
-      ================================================= */}
+      {/* MATRIX */}
 
       <div className="matrix-rain">
         {rain.map((item) => (
@@ -1723,9 +1297,7 @@ runLocalcommnandd()
             key={item.id}
             style={{
               left: item.left,
-
               animationDuration: item.duration,
-
               animationDelay: item.delay,
             }}
           >
@@ -1734,11 +1306,7 @@ runLocalcommnandd()
         ))}
       </div>
 
-      {/* =================================================
-
-          TOPBAR
-
-      ================================================= */}
+      {/* TOPBAR */}
 
       <header className="topbar">
         <div className="brand">
@@ -1748,7 +1316,6 @@ runLocalcommnandd()
 
           <div className="brand-text">
             <h1>NEXUS AI</h1>
-
             <p>KARAN&apos;S PERSONAL ASSISTANT</p>
           </div>
         </div>
@@ -1774,13 +1341,9 @@ runLocalcommnandd()
             <p>
               {currentDateTime.toLocaleDateString("en-IN", {
                 timeZone: "Asia/Kolkata",
-
                 weekday: "short",
-
                 day: "numeric",
-
                 month: "short",
-
                 year: "numeric",
               })}
             </p>
@@ -1812,11 +1375,7 @@ runLocalcommnandd()
         </div>
       </header>
 
-      {/* =================================================
-
-          PROFILE
-
-      ================================================= */}
+      {/* PROFILE */}
 
       {showProfile && (
         <div className="profile-overlay">
@@ -1838,11 +1397,7 @@ runLocalcommnandd()
         </div>
       )}
 
-      {/* =================================================
-
-          MEMORY
-
-      ================================================= */}
+      {/* MEMORY */}
 
       {showMemory && (
         <div className="memory-overlay">
@@ -1860,11 +1415,7 @@ runLocalcommnandd()
         </div>
       )}
 
-      {/* =================================================
-
-          ACTIVITY
-
-      ================================================= */}
+      {/* ACTIVITY */}
 
       {showActivity && (
         <div className="activity-overlay">
@@ -1882,18 +1433,10 @@ runLocalcommnandd()
         </div>
       )}
 
-      {/* =================================================
-
-          MAIN
-
-      ================================================= */}
+      {/* MAIN */}
 
       <main className="dashboard-layout">
-        {/* =================================================
-
-            LEFT
-
-        ================================================= */}
+        {/* LEFT */}
 
         <aside className="left-side">
           <div className="glass-panel nav-panel">
@@ -1905,37 +1448,30 @@ runLocalcommnandd()
                   switch (item.text) {
                     case "Dashboard":
                       navigate("/");
-
                       break;
 
                     case "AI Chat":
                       setShowChat(true);
-
                       break;
 
                     case "Voice Command":
                       setShowVoice(true);
-
                       break;
 
                     case "System & Web":
                       setShowSystem(true);
-
                       break;
 
                     case "AI Analytics":
                       setShowAnalytics(true);
-
                       break;
 
                     case "File Analyzer":
                       setShowFileAnalyzer(true);
-
                       break;
 
                     case "Settings":
                       setShowSettings(true);
-
                       break;
 
                     default:
@@ -1944,9 +1480,7 @@ runLocalcommnandd()
                 }}
               >
                 <span>{item.icon}</span>
-
                 <p>{item.text}</p>
-
                 <b>›</b>
               </div>
             ))}
@@ -1957,19 +1491,14 @@ runLocalcommnandd()
           <div className="glass-panel status-panel">
             <div className="panel-title">
               <h3>SYSTEM STATUS</h3>
-
               <span>⊙</span>
             </div>
 
             {[
               ["VOICE ENGINE", listening ? "ON" : "OFF"],
-
               ["VOICE MODE", voiceActive ? "ACTIVE" : "LOCKED"],
-
               ["AI API", backendStatus],
-
               ["NETWORK", networkStatus],
-
               ["SYSTEM", systemStatus],
             ].map(([name, value]) => (
               <div className="status-row" key={name}>
@@ -2000,29 +1529,20 @@ runLocalcommnandd()
           </div>
         </aside>
 
-        {/* =================================================
-
-            CENTER
-
-        ================================================= */}
+        {/* CENTER */}
 
         <section className="center-stage">
           <div className="ai-orb-wrap">
             <div className="circuit-left"></div>
-
             <div className="circuit-right"></div>
 
             <div className="rings"></div>
-
             <div className="rings ring-two"></div>
-
             <div className="rings ring-three"></div>
 
             <div className="ai-orb">
               <div className="orb-mesh mesh-one"></div>
-
               <div className="orb-mesh mesh-two"></div>
-
               <div className="orb-mesh mesh-three"></div>
 
               <h2>NEXUS AI</h2>
@@ -2033,9 +1553,7 @@ runLocalcommnandd()
 
           <div className="voice-active">
             <div className="equalizer">
-              {Array.from({
-                length: 14,
-              }).map((_, index) => (
+              {Array.from({ length: 14 }).map((_, index) => (
                 <span key={index} />
               ))}
             </div>
@@ -2050,9 +1568,7 @@ runLocalcommnandd()
             </p>
 
             <div className="equalizer">
-              {Array.from({
-                length: 14,
-              }).map((_, index) => (
+              {Array.from({ length: 14 }).map((_, index) => (
                 <span key={index} />
               ))}
             </div>
@@ -2090,11 +1606,7 @@ runLocalcommnandd()
           </div>
         </section>
 
-        {/* =================================================
-
-            RIGHT
-
-        ================================================= */}
+        {/* RIGHT */}
 
         <aside className="right-side">
           {/* CONSOLE */}
@@ -2139,7 +1651,6 @@ runLocalcommnandd()
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
                     event.preventDefault();
-
                     handleSend();
                   }
                 }}
@@ -2167,9 +1678,7 @@ runLocalcommnandd()
                 onClick={() => handleSend(item.text)}
               >
                 <span>{item.icon}</span>
-
                 <p>{item.text}</p>
-
                 <b>›</b>
               </div>
             ))}
@@ -2177,11 +1686,7 @@ runLocalcommnandd()
         </aside>
       </main>
 
-      {/* =================================================
-
-          CHAT MODAL
-
-      ================================================= */}
+      {/* CHAT MODAL */}
 
       {showChat && (
         <div className="chat-overlay">
@@ -2199,11 +1704,7 @@ runLocalcommnandd()
         </div>
       )}
 
-      {/* =================================================
-
-          VOICE ASSISTANT
-
-      ================================================= */}
+      {/* VOICE ASSISTANT */}
 
       {showVoice && (
         <div className="voice-overlay">
@@ -2221,11 +1722,7 @@ runLocalcommnandd()
         </div>
       )}
 
-      {/* =================================================
-
-          SYSTEM
-
-      ================================================= */}
+      {/* SYSTEM */}
 
       {showSystem && (
         <div className="system-overlay">
@@ -2243,11 +1740,7 @@ runLocalcommnandd()
         </div>
       )}
 
-      {/* =================================================
-
-          FILE ANALYZER
-
-      ================================================= */}
+      {/* FILE ANALYZER */}
 
       {showFileAnalyzer && (
         <div className="file-overlay">
@@ -2265,11 +1758,7 @@ runLocalcommnandd()
         </div>
       )}
 
-      {/* =================================================
-
-          ANALYTICS
-
-      ================================================= */}
+      {/* ANALYTICS */}
 
       {showAnalytics && (
         <div className="analytics-overlay">
@@ -2287,11 +1776,7 @@ runLocalcommnandd()
         </div>
       )}
 
-      {/* =================================================
-
-          SETTINGS
-
-      ================================================= */}
+      {/* SETTINGS */}
 
       {showSettings && (
         <div className="settings-overlay">

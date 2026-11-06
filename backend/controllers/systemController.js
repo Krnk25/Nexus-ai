@@ -1,283 +1,298 @@
-import { exec } from "child_process";
+
+import { execFile } from "child_process";
 import os from "os";
 
 // ======================================================
-// SUPPORTED APPS + WEBSITES + SYSTEM COMMANDS
+// SUPPORTED APPS AND WEBSITES
 // ======================================================
 
 const apps = [
-  // ====================================================
-  // APPS
-  // ====================================================
+  // WINDOWS APPLICATIONS
 
   {
     keys: ["notepad", "note pad"],
-    cmd: "notepad",
+    type: "app",
+    executable: "notepad.exe",
     name: "Notepad",
   },
-
   {
     keys: ["calculator", "calc"],
-    cmd: "calc",
+    type: "app",
+    executable: "calc.exe",
     name: "Calculator",
   },
-
   {
     keys: ["cmd", "command prompt"],
-    cmd: "start cmd",
-    name: "CMD",
+    type: "app",
+    executable: "cmd.exe",
+    name: "Command Prompt",
   },
-
   {
     keys: ["explorer", "file explorer", "files"],
-    cmd: "explorer",
+    type: "app",
+    executable: "explorer.exe",
     name: "File Explorer",
   },
-
   {
     keys: ["chrome", "google chrome"],
-    cmd: "start chrome",
-    name: "Chrome",
+    type: "chrome",
+    name: "Google Chrome",
   },
-
   {
-    keys: ["vs code", "vscode", "visual studio code"],
-    cmd: `start "" "%LocalAppData%\\Programs\\Microsoft VS Code\\Code.exe"`,
+    keys: ["vscode", "vs code", "visual studio code"],
+    type: "app",
+    executable: "code.exe",
     name: "VS Code",
   },
-
   {
     keys: ["paint", "ms paint"],
-    cmd: "mspaint",
+    type: "app",
+    executable: "mspaint.exe",
     name: "Paint",
   },
-
   {
     keys: ["control panel"],
-    cmd: "control",
+    type: "app",
+    executable: "control.exe",
     name: "Control Panel",
   },
-
   {
     keys: ["settings", "setting"],
-    cmd: "start ms-settings:",
-    name: "Settings",
+    type: "settings",
+    name: "Windows Settings",
   },
-
   {
-    keys: ["task manager"],
-    cmd: "taskmgr",
+    keys: ["task manager", "taskmgr"],
+    type: "app",
+    executable: "taskmgr.exe",
     name: "Task Manager",
   },
 
-  // ====================================================
   // WEBSITES
-  // ====================================================
-
-  {
-    keys: ["google"],
-    cmd: "start https://www.google.com",
-    name: "Google",
-  },
-
-  {
-    keys: ["youtube", "yt"],
-    cmd: "start https://www.youtube.com",
-    name: "YouTube",
-  },
-
-  {
-    keys: ["github", "git hub"],
-    cmd: "start https://github.com",
-    name: "GitHub",
-  },
-
-  {
-    keys: ["gmail", "mail"],
-    cmd: "start https://mail.google.com",
-    name: "Gmail",
-  },
-
-  {
-    keys: ["chatgpt", "chat gpt"],
-    cmd: "start https://chatgpt.com",
-    name: "ChatGPT",
-  },
 
   {
     keys: ["instagram", "insta"],
-    cmd: "start https://www.instagram.com",
+    type: "website",
+    url: "https://www.instagram.com",
     name: "Instagram",
   },
-
+  {
+    keys: ["youtube", "you tube", "yt"],
+    type: "website",
+    url: "https://www.youtube.com",
+    name: "YouTube",
+  },
+  {
+    keys: ["google"],
+    type: "website",
+    url: "https://www.google.com",
+    name: "Google",
+  },
+  {
+    keys: ["github", "git hub"],
+    type: "website",
+    url: "https://github.com",
+    name: "GitHub",
+  },
+  {
+    keys: ["gmail", "mail"],
+    type: "website",
+    url: "https://mail.google.com",
+    name: "Gmail",
+  },
+  {
+    keys: ["chatgpt", "chat gpt"],
+    type: "website",
+    url: "https://chatgpt.com",
+    name: "ChatGPT",
+  },
+  {
+    keys: ["whatsapp", "whats app"],
+    type: "website",
+    url: "https://web.whatsapp.com",
+    name: "WhatsApp",
+  },
+  {
+    keys: ["linkedin", "linked in", "linkdin"],
+    type: "website",
+    url: "https://www.linkedin.com",
+    name: "LinkedIn",
+  },
+  {
+    keys: ["facebook", "fb"],
+    type: "website",
+    url: "https://www.facebook.com",
+    name: "Facebook",
+  },
+  {
+    keys: ["telegram"],
+    type: "website",
+    url: "https://web.telegram.org",
+    name: "Telegram",
+  },
+  {
+    keys: ["twitter", "x"],
+    type: "website",
+    url: "https://x.com",
+    name: "Twitter/X",
+  },
   {
     keys: ["snapchat", "snap"],
-    cmd: "start https://www.snapchat.com/web",
+    type: "website",
+    url: "https://www.snapchat.com/web",
     name: "Snapchat",
   },
 
-  {
-    keys: ["linkedin", "linkdin", "linked in"],
-    cmd: "start https://www.linkedin.com",
-    name: "LinkedIn",
-  },
-
-  {
-    keys: ["facebook", "fb"],
-    cmd: "start https://www.facebook.com",
-    name: "Facebook",
-  },
-
-  {
-    keys: ["whatsapp", "whats app"],
-    cmd: "start https://web.whatsapp.com",
-    name: "WhatsApp",
-  },
-
-  {
-    keys: ["telegram"],
-    cmd: "start https://web.telegram.org",
-    name: "Telegram",
-  },
-
-  {
-    keys: ["twitter", "x"],
-    cmd: "start https://x.com",
-    name: "Twitter/X",
-  },
-
-  // ====================================================
   // POWER COMMANDS
-  // ====================================================
 
   {
     keys: ["lock screen", "lock laptop", "lock computer"],
-    cmd: "rundll32.exe user32.dll,LockWorkStation",
+    type: "power",
+    executable: "rundll32.exe",
+    args: ["user32.dll,LockWorkStation"],
     name: "Lock Screen",
-    dangerous: false,
   },
-
   {
-    keys: ["restart", "restart computer", "restart laptop"],
-    cmd: "shutdown /r /t 5",
+    keys: ["restart computer", "restart laptop", "restart"],
+    type: "power",
+    executable: "shutdown.exe",
+    args: ["/r", "/t", "5"],
     name: "Restart Computer",
     dangerous: true,
   },
-
   {
-    keys: ["shutdown", "shutdown computer", "shutdown laptop"],
-    cmd: "shutdown /s /t 5",
+    keys: ["shutdown computer", "shutdown laptop", "shutdown"],
+    type: "power",
+    executable: "shutdown.exe",
+    args: ["/s", "/t", "5"],
     name: "Shutdown Computer",
     dangerous: true,
   },
 ];
 
 // ======================================================
-// CLEAN VOICE COMMAND
+// CLEAN COMMAND
 // ======================================================
 
 const cleanCommand = (command = "") => {
   return command
     .toLowerCase()
-    .replace(/\b(open|opened|opening)\b/g, "")
-    .replace(/\b(start|started|starting)\b/g, "")
-    .replace(/\b(kholo|khol|chalu|shuru)\b/g, "")
-    .replace(/\b(please|pls)\b/g, "")
-    .replace(/\b(karan|bhai)\b/g, "")
     .replace(/[.,!?]/g, " ")
+    .replace(/\b(open|opened|opening|start|started|starting)\b/g, " ")
+    .replace(/\b(please|pls|bhai|karan|karo|kar|do|kholo|khol|kholna|chalu|shuru|dikhao)\b/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 };
 
 // ======================================================
-// FIND COMMAND
+// FIND MATCHING APP
 // ======================================================
 
 const findMatchingApp = (text) => {
-  return apps.find((app) =>
-    app.keys.some((key) => text === key || text.includes(key))
-  );
+  const matches = apps
+    .flatMap((app) =>
+      app.keys.map((key) => ({
+        app,
+        key,
+      }))
+    )
+    .filter(({ key }) => {
+      return (
+        text === key ||
+        text.startsWith(`${key} `) ||
+        text.endsWith(` ${key}`) ||
+        text.includes(` ${key} `)
+      );
+    })
+    .sort((a, b) => b.key.length - a.key.length);
+
+  return matches[0]?.app || null;
+};
+
+// ======================================================
+// EXECUTE WINDOWS PROCESS
+// ======================================================
+
+const executeProcess = (executable, args = []) => {
+  return new Promise((resolve, reject) => {
+    execFile(
+      executable,
+      args,
+      {
+        windowsHide: false,
+      },
+      (error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      }
+    );
+  });
 };
 
 // ======================================================
 // RUN SYSTEM COMMAND
 // ======================================================
 
-export const runSystemCommand = (req, res) => {
+export const runSystemCommand = async (req, res) => {
   try {
-    // --------------------------------------------------
     // WINDOWS CHECK
-    // --------------------------------------------------
 
     if (os.platform() !== "win32") {
       return res.status(400).json({
         success: false,
-        message:
-          "System commands are supported only on Windows.",
+        message: "System commands are supported only on Windows.",
       });
     }
 
-    // --------------------------------------------------
     // GET COMMAND
-    // --------------------------------------------------
 
-    const { command } = req.body;
+    const { command, confirm } = req.body || {};
 
-    if (
-      typeof command !== "string" ||
-      !command.trim()
-    ) {
+    if (typeof command !== "string" || !command.trim()) {
       return res.status(400).json({
         success: false,
         message: "Command is required.",
       });
     }
 
-    // --------------------------------------------------
     // CLEAN COMMAND
-    // --------------------------------------------------
 
     const text = cleanCommand(command);
 
-    console.log("=================================");
-    console.log("🗣️ RAW COMMAND:", command);
-    console.log("🧹 CLEAN COMMAND:", text);
-    console.log("=================================");
+    console.log("--------------------------------");
+    console.log("RAW COMMAND:", command);
+    console.log("CLEAN COMMAND:", text);
+    console.log("--------------------------------");
 
     if (!text) {
       return res.status(400).json({
         success: false,
-        message: "Command is empty after cleaning.",
+        message: "Please specify an application or website.",
       });
     }
 
-    // --------------------------------------------------
-    // MATCH COMMAND
-    // --------------------------------------------------
+    // FIND APPLICATION
 
     const matchedApp = findMatchingApp(text);
 
     if (!matchedApp) {
-      return res.status(400).json({
+      return res.status(404).json({
         success: false,
         message: `Command not supported: ${command}`,
         cleanCommand: text,
       });
     }
 
-    // --------------------------------------------------
-    // DANGEROUS COMMAND
-    // --------------------------------------------------
+    // CONFIRM POWER COMMANDS
 
     if (matchedApp.dangerous) {
-      const confirmation =
-        String(req.body.confirm || "").toLowerCase();
+      const confirmation = String(confirm || "").toLowerCase();
 
-      if (
-        confirmation !== "yes" &&
-        confirmation !== "true" &&
-        confirmation !== "confirm"
-      ) {
+      if (!["yes", "true", "confirm"].includes(confirmation)) {
         return res.status(400).json({
           success: false,
           requiresConfirmation: true,
@@ -287,64 +302,69 @@ export const runSystemCommand = (req, res) => {
       }
     }
 
-    // --------------------------------------------------
-    // EXECUTE WINDOWS COMMAND
-    // --------------------------------------------------
+    console.log("EXECUTING:", matchedApp.name);
 
-    console.log(
-      `🚀 Executing: ${matchedApp.name}`
-    );
+    // OPEN WEBSITE
 
-    exec(
-      matchedApp.cmd,
-      {
-        shell: "cmd.exe",
-        windowsHide: false,
-      },
-      (error, stdout, stderr) => {
-        if (error) {
-          console.error(
-            `❌ ${matchedApp.name} ERROR:`,
-            error.message
-          );
+    if (matchedApp.type === "website") {
+      await executeProcess("cmd.exe", [
+        "/c",
+        "start",
+        "",
+        matchedApp.url,
+      ]);
+    }
 
-          return res.status(500).json({
-            success: false,
-            message: `${matchedApp.name} failed.`,
-            error: error.message,
-          });
-        }
+    // OPEN CHROME
 
-        if (stderr) {
-          console.warn(
-            `⚠️ ${matchedApp.name} STDERR:`,
-            stderr
-          );
-        }
-
-        console.log(
-          `✅ ${matchedApp.name} executed successfully.`
-        );
-
-        return res.status(200).json({
-          success: true,
-          message: `${matchedApp.name} opened successfully.`,
-          app: matchedApp.name,
-          command: text,
-        });
+    else if (matchedApp.type === "chrome") {
+      try {
+        await executeProcess("chrome.exe");
+      } catch {
+        await executeProcess("cmd.exe", [
+          "/c",
+          "start",
+          "",
+          "chrome",
+        ]);
       }
-    );
+    }
+
+    // OPEN WINDOWS SETTINGS
+
+    else if (matchedApp.type === "settings") {
+      await executeProcess("cmd.exe", [
+        "/c",
+        "start",
+        "",
+        "ms-settings:",
+      ]);
+    }
+
+    // OPEN WINDOWS APPLICATIONS
+
+    else {
+      await executeProcess(
+        matchedApp.executable,
+        matchedApp.args || []
+      );
+    }
+
+    console.log("SUCCESS:", matchedApp.name);
+
+    return res.status(200).json({
+      success: true,
+      message: `${matchedApp.name} opened successfully.`,
+      app: matchedApp.name,
+      command: text,
+    });
+
   } catch (error) {
-    console.error(
-      "❌ SYSTEM COMMAND ERROR:",
-      error
-    );
+    console.error("SYSTEM COMMAND ERROR:", error);
 
     return res.status(500).json({
       success: false,
-      message:
-        error.message ||
-        "System command execution failed.",
+      message: error.message || "System command execution failed.",
     });
   }
 };
