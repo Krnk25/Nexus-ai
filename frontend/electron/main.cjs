@@ -375,6 +375,15 @@ async function handleSystemCommand(command) {
 // ===================================
 
 function createWindow() {
+  const preloadPath = path.join(__dirname, "preload.cjs");
+
+  console.log("========== NEXUS DEBUG ==========");
+  console.log("Electron:", process.versions.electron);
+  console.log("Main Directory:", __dirname);
+  console.log("Preload Path:", preloadPath);
+  console.log("Preload Exists:", fs.existsSync(preloadPath));
+  console.log("=================================");
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -382,14 +391,13 @@ function createWindow() {
     minHeight: 600,
 
     webPreferences: {
-      preload: path.join(__dirname, "preload.cjs"),
+      preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
     },
   });
 
-  // PRELOAD ERROR
   mainWindow.webContents.on(
     "preload-error",
     (event, preloadPath, error) => {
@@ -397,8 +405,17 @@ function createWindow() {
     }
   );
 
-  mainWindow.webContents.on("did-finish-load", () => {
+  mainWindow.webContents.on("did-finish-load", async () => {
     console.log("NEXUS WINDOW LOADED");
+
+    const result = await mainWindow.webContents.executeJavaScript(`
+      ({
+        isElectron: window.nexusAI?.isElectron,
+        bridgeAvailable: typeof window.nexusAI?.runSystemCommand
+      })
+    `);
+
+    console.log("PRELOAD BRIDGE TEST:", result);
   });
 
   mainWindow.webContents.on("console-message", (event, details) => {
@@ -406,9 +423,7 @@ function createWindow() {
   });
 
   if (app.isPackaged) {
-    mainWindow.loadFile(
-      path.join(__dirname, "../dist/index.html")
-    );
+    mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
   } else {
     mainWindow.loadURL("http://localhost:5173");
   }
@@ -417,6 +432,7 @@ function createWindow() {
     mainWindow = null;
   });
 }
+
 
 // ===================================
 // IPC

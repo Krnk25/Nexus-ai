@@ -811,242 +811,6 @@ export default function Dashboard() {
     }, 700);
   };
 
-  const isDirectSystemCommand = (command = "") => {
-    const text = command.toLowerCase().trim();
-
-    const targets = [
-      "youtube",
-      "yt",
-      "google",
-      "github",
-      "gmail",
-      "chatgpt",
-      "instagram",
-      "whatsapp",
-      "linkedin",
-      "facebook",
-      "telegram",
-      "twitter",
-      "chrome",
-      "google chrome",
-      "notepad",
-      "note pad",
-      "calculator",
-      "calc",
-      "file explorer",
-      "explorer",
-      "files",
-      "paint",
-      "ms paint",
-      "task manager",
-      "taskmgr",
-      "control panel",
-      "settings",
-      "setting",
-      "vs code",
-      "vscode",
-      "visual studio code",
-      "cmd",
-      "command prompt",
-      "lock screen",
-      "lock laptop",
-      "lock computer",
-    ];
-
-    const actionWords = [
-      "open",
-      "start",
-      "launch",
-      "please",
-      "run",
-      "kholo",
-      "khol",
-      "kholna",
-      "chalu",
-      "shuru",
-      "karo",
-      "kar do",
-      "dikhao",
-      "open karo",
-      "khul ja",
-    ];
-
-    const hasTarget = targets.some((target) => text.includes(target));
-
-    const hasAction = actionWords.some((word) => text.includes(word));
-
-    return hasTarget && (hasAction || targets.includes(text));
-  };
-
-  /* =======================================================
-     SYSTEM COMMAND
-  ======================================================= */
-  const runSystemCommand = async (command) => {
-    const original = safeText(command, "").trim();
-
-    if (!original) return "Please provide a command.";
-
-    try {
-      setSystemStatus("PROCESSING");
-
-      // Electron desktop mode
-      if (window.nexusAI?.runSystemCommand) {
-        const response = await window.nexusAI.runSystemCommand(original);
-
-        if (!response?.success) {
-          setSystemStatus("ERROR");
-          return response?.message || "Command failed.";
-        }
-
-        setSystemStatus("READY");
-        return response.message || "Command executed successfully.";
-      }
-
-      // Browser fallback: websites only
-     const websites = {
-  // Search engines
-  google: "https://www.google.com",
-  bing: "https://www.bing.com",
-  yahoo: "https://www.yahoo.com",
-  duckduckgo: "https://duckduckgo.com",
-
-  // Social media
-  instagram: "https://www.instagram.com",
-  facebook: "https://www.facebook.com",
-  whatsapp: "https://web.whatsapp.com",
-  telegram: "https://web.telegram.org",
-  twitter: "https://x.com",
-  linkedin: "https://www.linkedin.com",
-  snapchat: "https://www.snapchat.com",
-  pinterest: "https://www.pinterest.com",
-  reddit: "https://www.reddit.com",
-  threads: "https://www.threads.net",
-
-  // Google services
-  gmail: "https://mail.google.com",
-  drive: "https://drive.google.com",
-  docs: "https://docs.google.com",
-  sheets: "https://sheets.google.com",
-  slides: "https://slides.google.com",
-  calendar: "https://calendar.google.com",
-  maps: "https://maps.google.com",
-  photos: "https://photos.google.com",
-  meet: "https://meet.google.com",
-
-  // Development
-  youtube: "https://www.youtube.com",
-  yt: "https://www.youtube.com",
-  github: "https://github.com",
-  gitlab: "https://gitlab.com",
-  stackoverflow: "https://stackoverflow.com",
-  npm: "https://www.npmjs.com",
-  vercel: "https://vercel.com",
-  netlify: "https://www.netlify.com",
-  render: "https://render.com",
-  codesandbox: "https://codesandbox.io",
-  replit: "https://replit.com",
-
-  // AI websites
-  chatgpt: "https://chatgpt.com",
-  gemini: "https://gemini.google.com",
-  claude: "https://claude.ai",
-  perplexity: "https://www.perplexity.ai",
-  copilot: "https://copilot.microsoft.com",
-  huggingface: "https://huggingface.co",
-
-  // Entertainment
-  netflix: "https://www.netflix.com",
-  prime: "https://www.primevideo.com",
-  hotstar: "https://www.hotstar.com",
-  spotify: "https://open.spotify.com",
-  twitch: "https://www.twitch.tv",
-  discord: "https://discord.com/app",
-
-  // Shopping
-  amazon: "https://www.amazon.in",
-  flipkart: "https://www.flipkart.com",
-  meesho: "https://www.meesho.com",
-  myntra: "https://www.myntra.com",
-
-  // Other
-  wikipedia: "https://www.wikipedia.org",
-  canva: "https://www.canva.com",
-  zoom: "https://zoom.us",
-  notion: "https://www.notion.so",
-  wordpress: "https://wordpress.com",
-};
-      const text = original.toLowerCase();
-
-      const site = Object.keys(websites).find((name) =>
-        new RegExp(`\\b${name}\\b`, "i").test(text),
-      );
-
-      if (site) {
-        window.open(websites[site], "_blank", "noopener,noreferrer");
-        setSystemStatus("READY");
-        return `Opening ${site}.`;
-      }
-
-      setSystemStatus("ERROR");
-      return "Electron connection unavailable. Desktop apps require Electron mode.";
-    } catch (error) {
-      console.error("SYSTEM COMMAND ERROR:", error);
-      setSystemStatus("ERROR");
-      return error.message || "Unable to execute command.";
-    }
-  };
-
-  /* =======================================================
-     START / STOP VOICE
-  ======================================================= */
-
-  const startVoice = () => {
-    if (voiceActiveRef.current) {
-      stopVoice();
-      return;
-    }
-
-    voiceActiveRef.current = true;
-
-    setVoiceActive(true);
-    setVoiceReady(true);
-
-    addMessage("🎙️ Voice mode activated.");
-
-    startVoiceRecognition();
-  };
-
-  const stopVoice = () => {
-    voiceActiveRef.current = false;
-
-    setVoiceActive(false);
-    setListening(false);
-    setVoiceReady(false);
-
-    listeningRef.current = false;
-    speakingRef.current = false;
-    thinkingRef.current = false;
-
-    if (restartTimerRef.current) {
-      clearTimeout(restartTimerRef.current);
-      restartTimerRef.current = null;
-    }
-
-    try {
-      recognitionRef.current?.stop();
-    } catch {
-      // Ignore
-    }
-
-    recognitionRef.current = null;
-
-    window.speechSynthesis?.cancel();
-
-    setInput("");
-
-    addMessage("🛑 Voice mode stopped.");
-  };
-
   /* =======================================================
      DATE
   ======================================================= */
@@ -1092,6 +856,66 @@ export default function Dashboard() {
     }
 
     return `The current time is ${time}.`;
+  };
+
+  /* =========================================================
+   ELECTRON SYSTEM COMMAND
+   All website and desktop commands handled by main.cjs
+========================================================= */
+
+  const isDirectSystemCommand = (command) => {
+    const text = safeText(command, "").trim().toLowerCase();
+
+    if (!text) return false;
+
+    const actionPattern =
+      /\b(open|start|launch|run|khol|kholo|kholna|chalu karo|shuru karo)\b/i;
+
+    const targetPattern =
+      /\b(google|youtube|yt|instagram|facebook|whatsapp|telegram|twitter|linkedin|gmail|github|chatgpt|gemini|claude|copilot|perplexity|netflix|spotify|discord|amazon|flipkart|canva|notion|wikipedia|stackoverflow|gitlab|npm|vercel|render|replit|bing|yahoo|duckduckgo|snapchat|pinterest|reddit|threads|drive|docs|sheets|slides|calendar|maps|photos|meet|netlify|codesandbox|huggingface|prime|hotstar|twitch|meesho|myntra|wordpress|notepad|note pad|calculator|calc|paint|ms paint|file explorer|explorer|files|task manager|taskmgr|control panel|cmd|command prompt|powershell|power shell|regedit|registry editor|character map|charmap|snipping tool|magnifier|on screen keyboard|onscreen keyboard|media player|windows media player|vscode|vs code|visual studio code|chrome|google chrome|settings|setting|camera|windows camera|windows photos|lock screen|lock laptop|lock computer)\b/i;
+
+    return actionPattern.test(text) && targetPattern.test(text);
+  };
+
+  const runSystemCommand = async (command) => {
+    const original = safeText(command, "").trim();
+
+    if (!original) {
+      return "Please provide a command.";
+    }
+
+    try {
+      setSystemStatus("PROCESSING");
+
+      if (
+        !window.nexusAI ||
+        typeof window.nexusAI.runSystemCommand !== "function"
+      ) {
+        setSystemStatus("ERROR");
+
+        return "Electron connection unavailable. Please launch Nexus AI Desktop mode.";
+      }
+
+      console.log("NEXUS SYSTEM COMMAND:", original);
+
+      const response = await window.nexusAI.runSystemCommand(original);
+
+      if (!response || !response.success) {
+        setSystemStatus("ERROR");
+
+        return response?.message || "System command failed.";
+      }
+
+      setSystemStatus("READY");
+
+      return response.message || "Command executed successfully.";
+    } catch (error) {
+      console.error("NEXUS SYSTEM COMMAND ERROR:", error);
+
+      setSystemStatus("ERROR");
+
+      return error.message || "Unable to execute system command.";
+    }
   };
 
   /* =======================================================
@@ -1160,8 +984,10 @@ export default function Dashboard() {
 
     // WEBSITE + DESKTOP APP COMMANDS
     // Uses existing Electron main.cjs handler.
+    // WEBSITE + WINDOWS DESKTOP COMMANDS
+
     if (isDirectSystemCommand(original)) {
-      console.log("🔥 SYSTEM COMMAND DETECTED:", original);
+      console.log("🔥 SYSTEM COMMAND:", original);
 
       return await runSystemCommand(original);
     }
