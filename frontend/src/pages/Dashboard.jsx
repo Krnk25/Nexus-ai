@@ -903,20 +903,78 @@ export default function Dashboard() {
       }
 
       // Browser fallback: websites only
-      const websites = {
-        instagram: "https://www.instagram.com",
-        youtube: "https://www.youtube.com",
-        google: "https://www.google.com",
-        github: "https://github.com",
-        gmail: "https://mail.google.com",
-        whatsapp: "https://web.whatsapp.com",
-        linkedin: "https://www.linkedin.com",
-        facebook: "https://www.facebook.com",
-        chatgpt: "https://chatgpt.com",
-        telegram: "https://web.telegram.org",
-        twitter: "https://x.com",
-      };
+     const websites = {
+  // Search engines
+  google: "https://www.google.com",
+  bing: "https://www.bing.com",
+  yahoo: "https://www.yahoo.com",
+  duckduckgo: "https://duckduckgo.com",
 
+  // Social media
+  instagram: "https://www.instagram.com",
+  facebook: "https://www.facebook.com",
+  whatsapp: "https://web.whatsapp.com",
+  telegram: "https://web.telegram.org",
+  twitter: "https://x.com",
+  linkedin: "https://www.linkedin.com",
+  snapchat: "https://www.snapchat.com",
+  pinterest: "https://www.pinterest.com",
+  reddit: "https://www.reddit.com",
+  threads: "https://www.threads.net",
+
+  // Google services
+  gmail: "https://mail.google.com",
+  drive: "https://drive.google.com",
+  docs: "https://docs.google.com",
+  sheets: "https://sheets.google.com",
+  slides: "https://slides.google.com",
+  calendar: "https://calendar.google.com",
+  maps: "https://maps.google.com",
+  photos: "https://photos.google.com",
+  meet: "https://meet.google.com",
+
+  // Development
+  youtube: "https://www.youtube.com",
+  yt: "https://www.youtube.com",
+  github: "https://github.com",
+  gitlab: "https://gitlab.com",
+  stackoverflow: "https://stackoverflow.com",
+  npm: "https://www.npmjs.com",
+  vercel: "https://vercel.com",
+  netlify: "https://www.netlify.com",
+  render: "https://render.com",
+  codesandbox: "https://codesandbox.io",
+  replit: "https://replit.com",
+
+  // AI websites
+  chatgpt: "https://chatgpt.com",
+  gemini: "https://gemini.google.com",
+  claude: "https://claude.ai",
+  perplexity: "https://www.perplexity.ai",
+  copilot: "https://copilot.microsoft.com",
+  huggingface: "https://huggingface.co",
+
+  // Entertainment
+  netflix: "https://www.netflix.com",
+  prime: "https://www.primevideo.com",
+  hotstar: "https://www.hotstar.com",
+  spotify: "https://open.spotify.com",
+  twitch: "https://www.twitch.tv",
+  discord: "https://discord.com/app",
+
+  // Shopping
+  amazon: "https://www.amazon.in",
+  flipkart: "https://www.flipkart.com",
+  meesho: "https://www.meesho.com",
+  myntra: "https://www.myntra.com",
+
+  // Other
+  wikipedia: "https://www.wikipedia.org",
+  canva: "https://www.canva.com",
+  zoom: "https://zoom.us",
+  notion: "https://www.notion.so",
+  wordpress: "https://wordpress.com",
+};
       const text = original.toLowerCase();
 
       const site = Object.keys(websites).find((name) =>
