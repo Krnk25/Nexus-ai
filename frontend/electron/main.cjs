@@ -13,103 +13,63 @@ const { spawn } = require("child_process");
 
 let mainWindow;
 
-// =====================================
-// WEBSITES
-// =====================================
+// ===================================
+// WEBSITE LIST
+// ===================================
 
 const websites = {
-  // Search engines
   google: "https://www.google.com",
-  bing: "https://www.bing.com",
-  yahoo: "https://www.yahoo.com",
-  duckduckgo: "https://duckduckgo.com",
-
-  // Social media
+  youtube: "https://www.youtube.com",
+  yt: "https://www.youtube.com",
   instagram: "https://www.instagram.com",
   facebook: "https://www.facebook.com",
   whatsapp: "https://web.whatsapp.com",
   telegram: "https://web.telegram.org",
   twitter: "https://x.com",
-  x: "https://x.com",
   linkedin: "https://www.linkedin.com",
-  snapchat: "https://www.snapchat.com",
-  pinterest: "https://www.pinterest.com",
-  reddit: "https://www.reddit.com",
-  threads: "https://www.threads.net",
-
-  // Google services
   gmail: "https://mail.google.com",
-  drive: "https://drive.google.com",
-  docs: "https://docs.google.com",
-  sheets: "https://sheets.google.com",
-  slides: "https://slides.google.com",
-  calendar: "https://calendar.google.com",
-  maps: "https://maps.google.com",
-  photos: "https://photos.google.com",
-  meet: "https://meet.google.com",
-
-  // Development
-  youtube: "https://www.youtube.com",
-  yt: "https://www.youtube.com",
   github: "https://github.com",
-  gitlab: "https://gitlab.com",
-  stackoverflow: "https://stackoverflow.com",
-  npm: "https://www.npmjs.com",
-  vercel: "https://vercel.com",
-  netlify: "https://www.netlify.com",
-  render: "https://render.com",
-  codesandbox: "https://codesandbox.io",
-  replit: "https://replit.com",
-
-  // AI
   chatgpt: "https://chatgpt.com",
   gemini: "https://gemini.google.com",
   claude: "https://claude.ai",
-  perplexity: "https://www.perplexity.ai",
   copilot: "https://copilot.microsoft.com",
-  huggingface: "https://huggingface.co",
-
-  // Entertainment
+  perplexity: "https://www.perplexity.ai",
   netflix: "https://www.netflix.com",
-  prime: "https://www.primevideo.com",
-  hotstar: "https://www.hotstar.com",
   spotify: "https://open.spotify.com",
-  twitch: "https://www.twitch.tv",
   discord: "https://discord.com/app",
-
-  // Shopping
   amazon: "https://www.amazon.in",
   flipkart: "https://www.flipkart.com",
-  meesho: "https://www.meesho.com",
-  myntra: "https://www.myntra.com",
-
-  // Other
-  wikipedia: "https://www.wikipedia.org",
   canva: "https://www.canva.com",
-  zoom: "https://zoom.us",
   notion: "https://www.notion.so",
-  wordpress: "https://wordpress.com",
+  wikipedia: "https://www.wikipedia.org",
+  stackoverflow: "https://stackoverflow.com",
+  gitlab: "https://gitlab.com",
+  npm: "https://www.npmjs.com",
+  vercel: "https://vercel.com",
+  render: "https://render.com",
+  replit: "https://replit.com",
+  zoom: "https://zoom.us",
 };
 
-// =====================================
+// ===================================
 // COMMAND CLEANER
-// =====================================
+// ===================================
 
 function cleanCommand(command = "") {
   return command
     .toLowerCase()
-    .replace(/[.,!?]/g, " ")
     .replace(
-      /\b(please|pls|open|start|launch|run|go to|website|web site|app|application|khol do|kholo|khol|kholna|chalu karo|chalu|shuru karo|shuru|dikhao|kar do|karo|bhai)\b/g,
+      /\b(please|pls|open|start|launch|run|website|web site|app|application|khol do|kholo|khol|kholna|chalu karo|chalu|shuru karo|shuru|dikhao|kar do|karo|bhai)\b/g,
       " "
     )
+    .replace(/[.,!?]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-// =====================================
-// APPLICATION HELPERS
-// =====================================
+// ===================================
+// LAUNCH APPLICATION
+// ===================================
 
 function launchApp(executable, args = []) {
   return new Promise((resolve) => {
@@ -133,17 +93,21 @@ function launchApp(executable, args = []) {
       child.once("error", (error) => {
         resolve({
           success: false,
-          message: error.message || "Unable to open application.",
+          message: error.message,
         });
       });
     } catch (error) {
       resolve({
         success: false,
-        message: error.message || "Unable to open application.",
+        message: error.message,
       });
     }
   });
 }
+
+// ===================================
+// FIND VS CODE
+// ===================================
 
 function findVSCode() {
   const candidates = [
@@ -172,6 +136,10 @@ function findVSCode() {
 
   return candidates.find((file) => fs.existsSync(file));
 }
+
+// ===================================
+// FIND CHROME
+// ===================================
 
 function findChrome() {
   const candidates = [
@@ -206,131 +174,91 @@ function findChrome() {
   return candidates.find((file) => fs.existsSync(file));
 }
 
-// =====================================
-// WINDOWS APPLICATIONS
-// =====================================
+// ===================================
+// WINDOWS APP COMMANDS
+// ===================================
 
 const windowsApps = {
-  "notepad": {
+  notepad: {
+    aliases: ["notepad", "note pad"],
     exe: "notepad.exe",
-    aliases: ["notepad", "note pad", "text editor"],
   },
 
-  "calculator": {
-    exe: "calc.exe",
+  calculator: {
     aliases: ["calculator", "calc"],
+    exe: "calc.exe",
   },
 
-  "paint": {
-    exe: "mspaint.exe",
+  paint: {
     aliases: ["paint", "ms paint"],
+    exe: "mspaint.exe",
   },
 
-  "file explorer": {
-    exe: "explorer.exe",
+  explorer: {
     aliases: ["file explorer", "explorer", "files"],
+    exe: "explorer.exe",
   },
 
-  "task manager": {
-    exe: "taskmgr.exe",
+  taskmanager: {
     aliases: ["task manager", "taskmgr"],
+    exe: "taskmgr.exe",
   },
 
-  "control panel": {
-    exe: "control.exe",
+  controlpanel: {
     aliases: ["control panel"],
+    exe: "control.exe",
   },
 
-  "command prompt": {
-    exe: "cmd.exe",
+  cmd: {
     aliases: ["command prompt", "cmd"],
+    exe: "cmd.exe",
   },
 
-  "powershell": {
-    exe: "powershell.exe",
+  powershell: {
     aliases: ["powershell", "power shell"],
+    exe: "powershell.exe",
   },
 
-  "registry editor": {
-    exe: "regedit.exe",
+  regedit: {
     aliases: ["registry editor", "regedit"],
+    exe: "regedit.exe",
   },
 
-  "character map": {
-    exe: "charmap.exe",
+  charmap: {
     aliases: ["character map", "charmap"],
+    exe: "charmap.exe",
   },
 
-  "snipping tool": {
+  snipping: {
+    aliases: ["snipping tool"],
     exe: "SnippingTool.exe",
-    aliases: ["snipping tool", "snip tool"],
   },
 
-  "magnifier": {
+  magnifier: {
+    aliases: ["magnifier"],
     exe: "magnify.exe",
-    aliases: ["magnifier", "magnify"],
   },
 
-  "on screen keyboard": {
-    exe: "osk.exe",
+  keyboard: {
     aliases: ["on screen keyboard", "onscreen keyboard"],
+    exe: "osk.exe",
   },
 
-  "windows media player": {
-    exe: "wmplayer.exe",
+  media: {
     aliases: ["windows media player", "media player"],
-  },
-
-  "wordpad": {
-    exe: "write.exe",
-    aliases: ["wordpad"],
-  },
-
-  "chrome": {
-    special: "chrome",
-    aliases: ["chrome", "google chrome"],
-  },
-
-  "vs code": {
-    special: "vscode",
-    aliases: ["vs code", "vscode", "visual studio code"],
-  },
-
-  "settings": {
-    special: "settings",
-    aliases: ["settings", "setting", "windows settings"],
-  },
-
-  "camera": {
-    special: "camera",
-    aliases: ["camera", "windows camera"],
-  },
-
-  "photos": {
-    special: "photos",
-    aliases: ["photos", "windows photos"],
-  },
-
-  "microsoft store": {
-    special: "store",
-    aliases: ["microsoft store", "windows store"],
-  },
-
-  "lock screen": {
-    special: "lock",
-    aliases: ["lock screen", "lock laptop", "lock computer"],
+    exe: "wmplayer.exe",
   },
 };
 
-// =====================================
-// SYSTEM COMMAND HANDLER
-// =====================================
+// ===================================
+// HANDLE SYSTEM COMMAND
+// ===================================
 
 async function handleSystemCommand(command) {
   if (process.platform !== "win32") {
     return {
       success: false,
-      message: "Windows commands are supported only on Windows.",
+      message: "Windows commands only.",
     };
   }
 
@@ -346,10 +274,7 @@ async function handleSystemCommand(command) {
   console.log("NEXUS COMMAND:", command);
   console.log("CLEAN COMMAND:", text);
 
-  // =====================================
-  // OPEN WEBSITES
-  // =====================================
-
+  // WEBSITE
   const websiteNames = Object.keys(websites).sort(
     (a, b) => b.length - a.length
   );
@@ -366,91 +291,77 @@ async function handleSystemCommand(command) {
       } catch (error) {
         return {
           success: false,
-          message: `Unable to open ${name}: ${error.message}`,
+          message: error.message,
         };
       }
     }
   }
 
-  // =====================================
-  // OPEN WINDOWS APPLICATIONS
-  // =====================================
+  // VS CODE
+  if (
+    ["vscode", "vs code", "visual studio code"].includes(text)
+  ) {
+    const codePath = findVSCode();
 
-  const appEntries = Object.entries(windowsApps)
-    .flatMap(([name, config]) =>
-      config.aliases.map((alias) => ({
-        name,
-        alias,
-        config,
-      }))
-    )
-    .sort((a, b) => b.alias.length - a.alias.length);
-
-  for (const item of appEntries) {
-    const matches =
-      text === item.alias ||
-      text.endsWith(` ${item.alias}`);
-
-    if (!matches) continue;
-
-    const config = item.config;
-
-    // Chrome
-    if (config.special === "chrome") {
-      const chromePath = findChrome();
-
-      if (!chromePath) {
-        return {
-          success: false,
-          message: "Google Chrome was not found on this computer.",
-        };
-      }
-
-      return launchApp(chromePath);
+    if (!codePath) {
+      return {
+        success: false,
+        message: "VS Code not found.",
+      };
     }
 
-    // VS Code
-    if (config.special === "vscode") {
-      const codePath = findVSCode();
+    return launchApp(codePath);
+  }
 
-      if (!codePath) {
-        return {
-          success: false,
-          message: "VS Code was not found on this computer.",
-        };
-      }
+  // CHROME
+  if (["chrome", "google chrome"].includes(text)) {
+    const chromePath = findChrome();
 
-      return launchApp(codePath);
+    if (!chromePath) {
+      return {
+        success: false,
+        message: "Chrome not found.",
+      };
     }
 
-    // Windows Settings
-    if (config.special === "settings") {
-      return launchApp("explorer.exe", ["ms-settings:"]);
-    }
+    return launchApp(chromePath);
+  }
 
-    // Windows Camera
-    if (config.special === "camera") {
-      return launchApp("explorer.exe", ["microsoft.windows.camera:"]);
-    }
+  // SETTINGS
+  if (["settings", "setting", "windows settings"].includes(text)) {
+    return launchApp("explorer.exe", ["ms-settings:"]);
+  }
 
-    // Windows Photos
-    if (config.special === "photos") {
-      return launchApp("explorer.exe", ["ms-photos:"]);
-    }
+  // CAMERA
+  if (["camera", "windows camera"].includes(text)) {
+    return launchApp("explorer.exe", [
+      "microsoft.windows.camera:",
+    ]);
+  }
 
-    // Microsoft Store
-    if (config.special === "store") {
-      return launchApp("explorer.exe", ["ms-windows-store:"]);
-    }
+  // PHOTOS
+  if (["photos", "windows photos"].includes(text)) {
+    return launchApp("explorer.exe", ["ms-photos:"]);
+  }
 
-    // Lock screen
-    if (config.special === "lock") {
-      return launchApp("rundll32.exe", [
-        "user32.dll,LockWorkStation",
-      ]);
-    }
+  // LOCK COMPUTER
+  if (
+    ["lock", "lock screen", "lock laptop", "lock computer"].includes(text)
+  ) {
+    return launchApp("rundll32.exe", [
+      "user32.dll,LockWorkStation",
+    ]);
+  }
 
-    return launchApp(config.exe);
+  // OTHER WINDOWS APPS
+  for (const config of Object.values(windowsApps)) {
+    if (
+      config.aliases.some(
+        (alias) => text === alias || text.endsWith(` ${alias}`)
+      )
+    ) {
+      return launchApp(config.exe);
+    }
   }
 
   return {
@@ -459,9 +370,9 @@ async function handleSystemCommand(command) {
   };
 }
 
-// =====================================
-// CREATE ELECTRON WINDOW
-// =====================================
+// ===================================
+// CREATE WINDOW
+// ===================================
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -478,6 +389,22 @@ function createWindow() {
     },
   });
 
+  // PRELOAD ERROR
+  mainWindow.webContents.on(
+    "preload-error",
+    (event, preloadPath, error) => {
+      console.error("NEXUS PRELOAD ERROR:", preloadPath, error);
+    }
+  );
+
+  mainWindow.webContents.on("did-finish-load", () => {
+    console.log("NEXUS WINDOW LOADED");
+  });
+
+  mainWindow.webContents.on("console-message", (event, details) => {
+    console.log("RENDERER:", details.message);
+  });
+
   if (app.isPackaged) {
     mainWindow.loadFile(
       path.join(__dirname, "../dist/index.html")
@@ -491,9 +418,9 @@ function createWindow() {
   });
 }
 
-// =====================================
-// IPC SYSTEM COMMAND
-// =====================================
+// ===================================
+// IPC
+// ===================================
 
 ipcMain.handle(
   "nexus:system-command",
@@ -512,9 +439,9 @@ ipcMain.handle(
   }
 );
 
-// =====================================
+// ===================================
 // APP READY
-// =====================================
+// ===================================
 
 app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler(
@@ -524,9 +451,7 @@ app.whenReady().then(() => {
   );
 
   session.defaultSession.setPermissionCheckHandler(
-    (webContents, permission) => {
-      return permission === "media";
-    }
+    (webContents, permission) => permission === "media"
   );
 
   createWindow();
@@ -538,9 +463,9 @@ app.whenReady().then(() => {
   });
 });
 
-// =====================================
+// ===================================
 // APP CLOSE
-// =====================================
+// ===================================
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
