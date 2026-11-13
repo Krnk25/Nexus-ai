@@ -15,5 +15,5 @@
   "dependencies": {
     "json-server": "^0.17.4",
     "react-router-dom": "^7.17.0"
-  }
+  } 
 }

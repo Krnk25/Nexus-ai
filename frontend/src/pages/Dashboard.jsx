@@ -816,18 +816,157 @@ export default function Dashboard() {
    All website and desktop commands handled by main.cjs
 ========================================================= */
 
+
+/* =========================================================
+   DUAL MODE SYSTEM COMMAND — ELECTRON + BROWSER
+========================================================= */
+
+const isElectron = Boolean(
+  window.nexusAI?.isElectron &&
+  typeof window.nexusAI?.runSystemCommand === "function"
+);
+
+const browserWebsites = {
+  google: "https://www.google.com",
+  youtube: "https://www.youtube.com",
+  yt: "https://www.youtube.com",
+  instagram: "https://www.instagram.com",
+  facebook: "https://www.facebook.com",
+  whatsapp: "https://web.whatsapp.com",
+  telegram: "https://web.telegram.org",
+  twitter: "https://x.com",
+  linkedin: "https://www.linkedin.com",
+  gmail: "https://mail.google.com",
+  github: "https://github.com",
+  chatgpt: "https://chatgpt.com",
+  gemini: "https://gemini.google.com",
+  claude: "https://claude.ai",
+  copilot: "https://copilot.microsoft.com",
+  perplexity: "https://www.perplexity.ai",
+  netflix: "https://www.netflix.com",
+  spotify: "https://open.spotify.com",
+  discord: "https://discord.com/app",
+  amazon: "https://www.amazon.in",
+  flipkart: "https://www.flipkart.com",
+  canva: "https://www.canva.com",
+  notion: "https://www.notion.so",
+  wikipedia: "https://www.wikipedia.org",
+  stackoverflow: "https://stackoverflow.com",
+  gitlab: "https://gitlab.com",
+  npm: "https://www.npmjs.com",
+  vercel: "https://vercel.com",
+  render: "https://render.com",
+  replit: "https://replit.com",
+  zoom: "https://zoom.us",
+  bing: "https://www.bing.com",
+  yahoo: "https://www.yahoo.com",
+  snapchat: "https://www.snapchat.com",
+  pinterest: "https://www.pinterest.com",
+  reddit: "https://www.reddit.com",
+  threads: "https://www.threads.net",
+  drive: "https://drive.google.com",
+  docs: "https://docs.google.com",
+  sheets: "https://sheets.google.com",
+  slides: "https://slides.google.com",
+  calendar: "https://calendar.google.com",
+  maps: "https://maps.google.com",
+  meet: "https://meet.google.com",
+  netlify: "https://www.netlify.com",
+  huggingface: "https://huggingface.co",
+  twitch: "https://www.twitch.tv",
+  hotstar: "https://www.hotstar.com",
+  prime: "https://www.primevideo.com",
+  meesho: "https://www.meesho.com",
+  myntra: "https://www.myntra.com",
+  wordpress: "https://wordpress.com",
+  duckduckgo: "https://duckduckgo.com",
+  codesandbox: "https://codesandbox.io",
+};
+
+const cleanBrowserCommand = (command) => {
+  return safeText(command, "")
+    .toLowerCase()
+    .replace(
+      /\b(please|pls|open|start|launch|run|website|web site|app|application|khol do|kholo|khol|kholna|chalu karo|chalu|shuru karo|shuru|dikhao|kar do|karo|bhai)\b/g,
+      " "
+    )
+    .replace(/[.,!?]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
 const isDirectSystemCommand = (command) => {
   const text = safeText(command, "").trim().toLowerCase();
-
-  if (!text) return false;
 
   const actionPattern =
     /\b(open|start|launch|run|khol|kholo|kholna|chalu karo|shuru karo)\b/i;
 
-  const targetPattern =
-    /\b(google|youtube|yt|instagram|facebook|whatsapp|telegram|twitter|linkedin|gmail|github|chatgpt|gemini|claude|copilot|perplexity|netflix|spotify|discord|amazon|flipkart|canva|notion|wikipedia|stackoverflow|gitlab|npm|vercel|render|replit|bing|yahoo|duckduckgo|snapchat|pinterest|reddit|threads|drive|docs|sheets|slides|calendar|maps|photos|meet|netlify|codesandbox|huggingface|prime|hotstar|twitch|meesho|myntra|wordpress|notepad|note pad|calculator|calc|paint|ms paint|file explorer|explorer|files|task manager|taskmgr|control panel|cmd|command prompt|powershell|power shell|regedit|registry editor|character map|charmap|snipping tool|magnifier|on screen keyboard|onscreen keyboard|media player|windows media player|vscode|vs code|visual studio code|chrome|google chrome|settings|setting|camera|windows camera|windows photos|lock screen|lock laptop|lock computer)\b/i;
+  const target = cleanBrowserCommand(text);
 
-  return actionPattern.test(text) && targetPattern.test(text);
+  const desktopApps = [
+    "notepad", "note pad", "calculator", "calc",
+    "paint", "ms paint", "file explorer", "explorer",
+    "files", "task manager", "taskmgr", "control panel",
+    "cmd", "command prompt", "powershell", "power shell",
+    "regedit", "registry editor", "character map",
+    "charmap", "snipping tool", "magnifier",
+    "on screen keyboard", "onscreen keyboard",
+    "media player", "windows media player",
+    "vscode", "vs code", "visual studio code",
+    "chrome", "google chrome", "settings", "setting",
+    "camera", "windows camera", "windows photos",
+    "lock screen", "lock laptop", "lock computer",
+  ];
+
+  const allTargets = [
+    ...Object.keys(browserWebsites),
+    ...desktopApps,
+  ];
+
+  return (
+    actionPattern.test(text) &&
+    allTargets.some(
+      (name) => target === name || target.endsWith(` ${name}`)
+    )
+  );
+};
+
+useEffect(() => {
+  console.log("========== NEXUS BRIDGE CHECK ==========");
+  console.log("Window:", window);
+  console.log("Nexus AI:", window.nexusAI);
+  console.log("Is Electron:", window.nexusAI?.isElectron);
+  console.log(
+    "System Command:",
+    typeof window.nexusAI?.runSystemCommand
+  );
+  console.log("========================================");
+}, []);
+
+const isDesktopOnlyCommand = (command) => {
+  const text = cleanBrowserCommand(command);
+
+  return [
+    "notepad", "note pad",
+    "calculator", "calc",
+    "paint", "ms paint",
+    "file explorer", "explorer", "files",
+    "task manager", "taskmgr",
+    "control panel",
+    "cmd", "command prompt",
+    "powershell", "power shell",
+    "regedit", "registry editor",
+    "character map", "charmap",
+    "snipping tool", "magnifier",
+    "on screen keyboard", "onscreen keyboard",
+    "media player", "windows media player",
+    "vscode", "vs code", "visual studio code",
+    "chrome", "google chrome",
+    "settings", "setting",
+    "camera", "windows camera",
+    "windows photos",
+    "lock screen", "lock laptop", "lock computer",
+  ].includes(text);
 };
 
 const runSystemCommand = async (command) => {
@@ -840,29 +979,61 @@ const runSystemCommand = async (command) => {
   try {
     setSystemStatus("PROCESSING");
 
-    if (
-      !window.nexusAI ||
-      typeof window.nexusAI.runSystemCommand !== "function"
-    ) {
-      setSystemStatus("ERROR");
+    console.log("NEXUS MODE:", isElectron ? "DESKTOP" : "BROWSER");
+    console.log("NEXUS COMMAND:", original);
 
-      return "Electron connection unavailable. Please launch Nexus AI Desktop mode.";
+    // DESKTOP MODE
+    if (isElectron) {
+      const response = await window.nexusAI.runSystemCommand(original);
+
+      if (!response?.success) {
+        setSystemStatus("ERROR");
+        return response?.message || "Desktop command failed.";
+      }
+
+      setSystemStatus("READY");
+      return response.message || "Command executed successfully.";
     }
 
-    console.log("NEXUS SYSTEM COMMAND:", original);
+    // BROWSER MODE
+    const target = cleanBrowserCommand(original);
 
-    const response =
-      await window.nexusAI.runSystemCommand(original);
-
-    if (!response || !response.success) {
+    // Windows-only applications
+    if (isDesktopOnlyCommand(original)) {
       setSystemStatus("ERROR");
 
-      return response?.message || "System command failed.";
+      return "This command requires Nexus AI Desktop App. Please use the installed desktop application.";
     }
 
-    setSystemStatus("READY");
+    // Find website
+    const websiteName = Object.keys(browserWebsites)
+      .sort((a, b) => b.length - a.length)
+      .find(
+        (name) =>
+          target === name || target.endsWith(` ${name}`)
+      );
 
-    return response.message || "Command executed successfully.";
+    if (websiteName) {
+      const url = browserWebsites[websiteName];
+
+      const newTab = window.open(
+        url,
+        "_blank",
+        "noopener,noreferrer"
+      );
+
+      if (!newTab) {
+        setSystemStatus("ERROR");
+        return "Browser blocked the new tab. Please allow pop-ups for Nexus AI and try again.";
+      }
+
+      setSystemStatus("READY");
+      return `${websiteName} opened successfully.`;
+    }
+
+    setSystemStatus("ERROR");
+
+    return `Browser does not support this system command: ${original}`;
 
   } catch (error) {
     console.error("NEXUS SYSTEM COMMAND ERROR:", error);

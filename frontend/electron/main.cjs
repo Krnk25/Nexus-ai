@@ -2,9 +2,9 @@
 const {
   app,
   BrowserWindow,
-  session,
   ipcMain,
   shell,
+  session,
 } = require("electron");
 
 const path = require("path");
@@ -13,9 +13,9 @@ const { spawn } = require("child_process");
 
 let mainWindow;
 
-// ===================================
-// WEBSITE LIST
-// ===================================
+// =====================================
+// WEBSITE COMMANDS
+// =====================================
 
 const websites = {
   google: "https://www.google.com",
@@ -51,9 +51,72 @@ const websites = {
   zoom: "https://zoom.us",
 };
 
-// ===================================
+// =====================================
+// WINDOWS APPLICATIONS
+// =====================================
+
+const windowsApps = {
+  notepad: {
+    aliases: ["notepad", "note pad"],
+    exe: "notepad.exe",
+  },
+  calculator: {
+    aliases: ["calculator", "calc"],
+    exe: "calc.exe",
+  },
+  paint: {
+    aliases: ["paint", "ms paint"],
+    exe: "mspaint.exe",
+  },
+  explorer: {
+    aliases: ["file explorer", "explorer", "files"],
+    exe: "explorer.exe",
+  },
+  taskmanager: {
+    aliases: ["task manager", "taskmgr"],
+    exe: "taskmgr.exe",
+  },
+  controlpanel: {
+    aliases: ["control panel"],
+    exe: "control.exe",
+  },
+  cmd: {
+    aliases: ["command prompt", "cmd"],
+    exe: "cmd.exe",
+  },
+  powershell: {
+    aliases: ["powershell", "power shell"],
+    exe: "powershell.exe",
+  },
+  regedit: {
+    aliases: ["registry editor", "regedit"],
+    exe: "regedit.exe",
+  },
+  charmap: {
+    aliases: ["character map", "charmap"],
+    exe: "charmap.exe",
+  },
+  snipping: {
+    aliases: ["snipping tool"],
+    exe: "SnippingTool.exe",
+  },
+  magnifier: {
+    aliases: ["magnifier"],
+    exe: "magnify.exe",
+  },
+  keyboard: {
+    aliases: ["on screen keyboard", "onscreen keyboard"],
+    exe: "osk.exe",
+  },
+  media: {
+    aliases: ["windows media player", "media player"],
+    exe: "wmplayer.exe",
+  },
+};
+
+// =====================================
 // COMMAND CLEANER
-// ===================================
+// =====================================
 
 function cleanCommand(command = "") {
   return command
@@ -67,9 +130,9 @@ function cleanCommand(command = "") {
     .trim();
 }
 
-// ===================================
-// LAUNCH APPLICATION
-// ===================================
+// =====================================
+// LAUNCH WINDOWS APPLICATION
+// =====================================
 
 function launchApp(executable, args = []) {
   return new Promise((resolve) => {
@@ -86,7 +149,7 @@ function launchApp(executable, args = []) {
 
         resolve({
           success: true,
-          message: "Application opened successfully.",
+          message: `${executable} opened successfully.`,
         });
       });
 
@@ -105,9 +168,9 @@ function launchApp(executable, args = []) {
   });
 }
 
-// ===================================
-// FIND VS CODE
-// ===================================
+// =====================================
+// FIND INSTALLED APPLICATIONS
+// =====================================
 
 function findVSCode() {
   const candidates = [
@@ -136,10 +199,6 @@ function findVSCode() {
 
   return candidates.find((file) => fs.existsSync(file));
 }
-
-// ===================================
-// FIND CHROME
-// ===================================
 
 function findChrome() {
   const candidates = [
@@ -174,107 +233,31 @@ function findChrome() {
   return candidates.find((file) => fs.existsSync(file));
 }
 
-// ===================================
-// WINDOWS APP COMMANDS
-// ===================================
-
-const windowsApps = {
-  notepad: {
-    aliases: ["notepad", "note pad"],
-    exe: "notepad.exe",
-  },
-
-  calculator: {
-    aliases: ["calculator", "calc"],
-    exe: "calc.exe",
-  },
-
-  paint: {
-    aliases: ["paint", "ms paint"],
-    exe: "mspaint.exe",
-  },
-
-  explorer: {
-    aliases: ["file explorer", "explorer", "files"],
-    exe: "explorer.exe",
-  },
-
-  taskmanager: {
-    aliases: ["task manager", "taskmgr"],
-    exe: "taskmgr.exe",
-  },
-
-  controlpanel: {
-    aliases: ["control panel"],
-    exe: "control.exe",
-  },
-
-  cmd: {
-    aliases: ["command prompt", "cmd"],
-    exe: "cmd.exe",
-  },
-
-  powershell: {
-    aliases: ["powershell", "power shell"],
-    exe: "powershell.exe",
-  },
-
-  regedit: {
-    aliases: ["registry editor", "regedit"],
-    exe: "regedit.exe",
-  },
-
-  charmap: {
-    aliases: ["character map", "charmap"],
-    exe: "charmap.exe",
-  },
-
-  snipping: {
-    aliases: ["snipping tool"],
-    exe: "SnippingTool.exe",
-  },
-
-  magnifier: {
-    aliases: ["magnifier"],
-    exe: "magnify.exe",
-  },
-
-  keyboard: {
-    aliases: ["on screen keyboard", "onscreen keyboard"],
-    exe: "osk.exe",
-  },
-
-  media: {
-    aliases: ["windows media player", "media player"],
-    exe: "wmplayer.exe",
-  },
-};
-
-// ===================================
-// HANDLE SYSTEM COMMAND
-// ===================================
+// =====================================
+// SYSTEM COMMAND CONTROLLER
+// =====================================
 
 async function handleSystemCommand(command) {
   if (process.platform !== "win32") {
     return {
       success: false,
-      message: "Windows commands only.",
+      message: "Windows commands are supported only on Windows.",
     };
   }
 
   if (typeof command !== "string" || !command.trim()) {
     return {
       success: false,
-      message: "Please provide a command.",
+      message: "Please provide a valid command.",
     };
   }
 
   const text = cleanCommand(command);
 
-  console.log("NEXUS COMMAND:", command);
-  console.log("CLEAN COMMAND:", text);
+  console.log("NEXUS ORIGINAL COMMAND:", command);
+  console.log("NEXUS CLEAN COMMAND:", text);
 
-  // WEBSITE
+  // WEBSITES
   const websiteNames = Object.keys(websites).sort(
     (a, b) => b.length - a.length
   );
@@ -286,7 +269,7 @@ async function handleSystemCommand(command) {
 
         return {
           success: true,
-          message: `${name} opened successfully.`,
+          message: `Opening ${name}.`,
         };
       } catch (error) {
         return {
@@ -306,7 +289,7 @@ async function handleSystemCommand(command) {
     if (!codePath) {
       return {
         success: false,
-        message: "VS Code not found.",
+        message: "VS Code is not installed or could not be found.",
       };
     }
 
@@ -320,15 +303,17 @@ async function handleSystemCommand(command) {
     if (!chromePath) {
       return {
         success: false,
-        message: "Chrome not found.",
+        message: "Google Chrome could not be found.",
       };
     }
 
     return launchApp(chromePath);
   }
 
-  // SETTINGS
-  if (["settings", "setting", "windows settings"].includes(text)) {
+  // WINDOWS SETTINGS
+  if (
+    ["settings", "setting", "windows settings"].includes(text)
+  ) {
     return launchApp("explorer.exe", ["ms-settings:"]);
   }
 
@@ -355,11 +340,11 @@ async function handleSystemCommand(command) {
 
   // OTHER WINDOWS APPS
   for (const config of Object.values(windowsApps)) {
-    if (
-      config.aliases.some(
-        (alias) => text === alias || text.endsWith(` ${alias}`)
-      )
-    ) {
+    const matched = config.aliases.some(
+      (alias) => text === alias || text.endsWith(` ${alias}`)
+    );
+
+    if (matched) {
       return launchApp(config.exe);
     }
   }
@@ -370,79 +355,16 @@ async function handleSystemCommand(command) {
   };
 }
 
-// ===================================
-// CREATE WINDOW
-// ===================================
-
-function createWindow() {
-  const preloadPath = path.join(__dirname, "preload.cjs");
-
-  console.log("========== NEXUS DEBUG ==========");
-  console.log("Electron:", process.versions.electron);
-  console.log("Main Directory:", __dirname);
-  console.log("Preload Path:", preloadPath);
-  console.log("Preload Exists:", fs.existsSync(preloadPath));
-  console.log("=================================");
-
-  mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    minWidth: 900,
-    minHeight: 600,
-
-    webPreferences: {
-      preload: preloadPath,
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
-    },
-  });
-
-  mainWindow.webContents.on(
-    "preload-error",
-    (event, preloadPath, error) => {
-      console.error("NEXUS PRELOAD ERROR:", preloadPath, error);
-    }
-  );
-
-  mainWindow.webContents.on("did-finish-load", async () => {
-    console.log("NEXUS WINDOW LOADED");
-
-    const result = await mainWindow.webContents.executeJavaScript(`
-      ({
-        isElectron: window.nexusAI?.isElectron,
-        bridgeAvailable: typeof window.nexusAI?.runSystemCommand
-      })
-    `);
-
-    console.log("PRELOAD BRIDGE TEST:", result);
-  });
-
-  mainWindow.webContents.on("console-message", (event, details) => {
-    console.log("RENDERER:", details.message);
-  });
-
-  if (app.isPackaged) {
-    mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
-  } else {
-    mainWindow.loadURL("http://localhost:5173");
-  }
-
-  mainWindow.on("closed", () => {
-    mainWindow = null;
-  });
-}
-
-
-// ===================================
-// IPC
-// ===================================
+// =====================================
+// IPC CONNECTION
+// =====================================
 
 ipcMain.handle(
   "nexus:system-command",
   async (event, command) => {
     if (
       !mainWindow ||
+      mainWindow.isDestroyed() ||
       event.sender.id !== mainWindow.webContents.id
     ) {
       return {
@@ -455,11 +377,89 @@ ipcMain.handle(
   }
 );
 
-// ===================================
+// =====================================
+// CREATE ELECTRON WINDOW
+// =====================================
+
+function createWindow() {
+  const preloadPath = path.join(__dirname, "preload.cjs");
+
+  console.log("========== NEXUS DEBUG ==========");
+  console.log("Electron:", process.versions.electron);
+  console.log("Platform:", process.platform);
+  console.log("Main Directory:", __dirname);
+  console.log("Preload Path:", preloadPath);
+  console.log("Preload Exists:", fs.existsSync(preloadPath));
+  console.log("=================================");
+
+  mainWindow = new BrowserWindow({
+    width: 1280,
+    height: 800,
+    minWidth: 900,
+    minHeight: 600,
+    show: true,
+
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  });
+
+  // PRELOAD ERROR
+  mainWindow.webContents.on(
+    "preload-error",
+    (event, filePath, error) => {
+      console.error("NEXUS PRELOAD ERROR:", filePath, error);
+    }
+  );
+
+  // WINDOW LOADED
+  mainWindow.webContents.on("did-finish-load", async () => {
+    console.log("NEXUS WINDOW LOADED");
+
+    try {
+      const result =
+        await mainWindow.webContents.executeJavaScript(`
+          ({
+            isElectron: window.nexusAI?.isElectron,
+            appName: window.nexusAI?.appName,
+            bridgeAvailable:
+              typeof window.nexusAI?.runSystemCommand
+          })
+        `);
+
+      console.log("PRELOAD BRIDGE TEST:", result);
+    } catch (error) {
+      console.error("BRIDGE TEST ERROR:", error);
+    }
+  });
+
+  mainWindow.webContents.on("console-message", (event, details) => {
+    console.log("RENDERER:", details.message);
+  });
+
+  // LOAD APPLICATION
+  if (app.isPackaged) {
+    mainWindow.loadFile(
+      path.join(__dirname, "../dist/index.html")
+    );
+  } else {
+    mainWindow.loadURL("http://localhost:5173");
+  }
+
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+  });
+}
+
+// =====================================
 // APP READY
-// ===================================
+// =====================================
 
 app.whenReady().then(() => {
+  // MICROPHONE PERMISSIONS
   session.defaultSession.setPermissionRequestHandler(
     (webContents, permission, callback) => {
       callback(permission === "media");
@@ -467,7 +467,9 @@ app.whenReady().then(() => {
   );
 
   session.defaultSession.setPermissionCheckHandler(
-    (webContents, permission) => permission === "media"
+    (webContents, permission) => {
+      return permission === "media";
+    }
   );
 
   createWindow();
@@ -479,9 +481,9 @@ app.whenReady().then(() => {
   });
 });
 
-// ===================================
+// =====================================
 // APP CLOSE
-// ===================================
+// =====================================
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
